@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {loadState,persistState,withFreshState,databaseHealth,closeStorage} from './storage.mjs';
+import {loadState,persistState,withFreshState,databaseHealth,closeStorage,storeImage,loadImage} from './storage.mjs';
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const DATA=process.env.SHODS_DATA_PATH||path.join(ROOT,'server','data','db.json');
@@ -79,7 +79,7 @@ function authed(req){const user=getUser(req);if(!user)throw fail(401,'LOGIN_REQU
 function administrator(req){const user=authed(req);if(user.role!=='admin')throw fail(403,'ADMIN_ONLY');return user}
 function audit(admin,action,target,detail=''){db.audit??=[];db.audit.unshift({id:uid('A_'),admin:admin.id,adminName:admin.name,action,target,detail:short(detail,150),at:now()});db.audit=db.audit.slice(0,500)}
 const visible=(item)=>item.active&&item.moderation!=='hidden';
-const imageOk=(s)=>!s||(typeof s==='string'&&s.length<1300000&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s));
+const imageOk=(s)=>!s||(typeof s==='string'&&( /^\/api\/media\/[a-f0-9-]{36}$/.test(s) || (s.length<1300000&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s)) ));
 async function body(req){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>1800000)throw fail(413,'PAYLOAD_TOO_LARGE');chunks.push(chunk)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')}catch{throw fail(400,'INVALID_JSON')}}
 const reviewsFor=(itemId)=>db.reviews.filter(r=>r.itemId===itemId);
 function itemPublic(p){const seller=db.users.find(u=>u.id===p.seller);const reviews=reviewsFor(p.id);return {...p,sellerName:seller?.name||'Talaba',institute:seller?.institute||'',faculty:seller?.faculty||'',rating:reviews.length?reviews.reduce((n,r)=>n+r.stars,0)/reviews.length:0,reviewCount:reviews.length};}
@@ -145,6 +145,22 @@ async function aiAssist(data){const action=clean(data.action);const aiLanguage=(
 function limitLogin(req){const ip=String(req.socket.remoteAddress||'unknown');const old=loginAttempts.get(ip)||[];const recent=old.filter(t=>t>Date.now()-10*60000);if(recent.length>=30)throw fail(429,'TOO_MANY_ATTEMPTS');recent.push(Date.now());loginAttempts.set(ip,recent)}
 async function router(req,res){const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);const p=url.pathname,method=req.method;
   if(p==='/api/health'){const database=await databaseHealth();return response(res,200,{ok:true,version:'2.0.0',database});}
+  // Photos are uploaded first and receive a stable URL. Only owners with a
+  // valid session can upload. The media response is read-only and public.
+  if(p==='/api/media'&&method==='POST'){
+    const u=authed(req),b=await body(req);
+    const match=/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(b.image||''));
+    if(!match)throw fail(400,'INVALID_IMAGE');
+    const bytes=Buffer.from(match[2],'base64');
+    const mime='image/'+match[1];
+    const valid=bytes.length>=12&&bytes.length<=600000&&(
+      (mime==='image/jpeg'&&bytes[0]===0xff&&bytes[1]===0xd8&&bytes[2]===0xff)||
+      (mime==='image/png'&&bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')))||
+      (mime==='image/webp'&&bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'));
+    if(!valid)throw fail(400,'INVALID_IMAGE');
+    const url=await storeImage(DATA,u.id,mime,bytes);
+    return response(res,201,{url});
+  }
   if(p==='/api/bootstrap'&&method==='GET')return response(res,200,{items:db.items.filter(visible).map(itemPublic),institutions,faculties,config:{aiEnabled:!!AI_KEY,telegramEnabled,telegramBotName:BOT_NAME}});
   if(p==='/api/auth/me'&&method==='GET')return response(res,200,{user:publicUser(getUser(req))});
   if(p==='/api/auth/login'&&method==='POST'){limitLogin(req);const b=await body(req);const u=db.users.find(x=>x.login===short(b.login,100));if(!u||!checkPassword(String(b.password||''),u.passwordHash))throw fail(401,'INVALID_CREDENTIALS');if((u.status||'active')!=='active')throw fail(403,'ACCOUNT_SUSPENDED');const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+7*86400000};await save();loginCookie(res,token);return response(res,200,{user:publicUser(u)})}
@@ -260,6 +276,16 @@ async function handle(req,res){try{
   }
   if(req.url?.startsWith('/api/')){
     const p=new URL(req.url,'http://localhost').pathname;
+    // Product images are independent of marketplace JSON; read them without
+    // taking the global marketplace-state lock or reading sessions.
+    const mediaId=req.method==='GET'&&p.match(/^\/api\/media\/([a-f0-9-]{36})$/)?.[1];
+    if(mediaId){
+      const media=await loadImage(DATA,mediaId);
+      if(!media)throw fail(404,'NOT_FOUND');
+      res.writeHead(200,{'Content-Type':media.mime,'Content-Length':media.bytes.length,
+        'Cache-Control':'public,max-age=31536000,immutable','X-Content-Type-Options':'nosniff'});
+      res.end(media.bytes);return;
+    }
     const write=['POST','PUT','PATCH','DELETE'].includes(req.method||'') && p!=='/api/ai/assist';
     return await withFreshState(DATA,write,async state=>{db=state;return router(req,res)});
   }if(req.method!=='GET')throw fail(405,'METHOD_NOT_ALLOWED');const dist=path.join(ROOT,'dist');let u;try{u=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{throw fail(400,'INVALID_URL')}const requestFile=path.resolve(dist,'.'+u);if(!requestFile.startsWith(dist+path.sep)&&requestFile!==dist)throw fail(403,'FORBIDDEN');const filename=fs.existsSync(requestFile)&&fs.statSync(requestFile).isFile()?requestFile:path.join(dist,'index.html');if(!fs.existsSync(filename))return response(res,404,{error:'Build not found. Run npm run dev or npm run build.'});const contentTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};res.writeHead(200,{'Content-Type':contentTypes[path.extname(filename)]||'application/octet-stream','Cache-Control':filename.endsWith('index.html')?'no-cache':'public, max-age=3600'});fs.createReadStream(filename).pipe(res);}catch(e){if(!res.headersSent)response(res,e.status||500,{error:e.message||'SERVER_ERROR'});else res.end();if(!e.status)console.error(e)}}

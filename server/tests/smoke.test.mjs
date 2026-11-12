@@ -26,6 +26,19 @@ test('SHODS SHOP: seller → buyer → admin end-to-end',async()=>{
   const item=await request('/api/listings',{method:'POST',cookie:seller,body:{name:'Hackathon product',description:'Test',kind:'Moddiy',category:'Ta’lim',price:10500,stock:3,location:'Termiz, institut',active:true}});
   assert.equal(item.status,201,JSON.stringify(item.data));
   const id=item.data.item.id;
+  // Upload a real image, attach by URL, and ensure it survives catalog reload.
+  const png=fs.readFileSync(new URL('../../public/icon-192.png',import.meta.url));
+  const mediaUpload=await request('/api/media',{method:'POST',cookie:seller,body:{image:'data:image/png;base64,'+png.toString('base64')}});
+  assert.equal(mediaUpload.status,201,JSON.stringify(mediaUpload.data));
+  assert.match(mediaUpload.data.url,/^\/api\/media\/[a-f0-9-]{36}$/);
+  const afterImage=await request('/api/listings/'+id,{method:'PATCH',cookie:seller,body:{...item.data.item,image:mediaUpload.data.url}});
+  assert.equal(afterImage.status,200,JSON.stringify(afterImage.data));
+  assert.equal((await request('/api/bootstrap')).data.items.find(p=>p.id===id).image,mediaUpload.data.url);
+  const actualImage=await fetch(base+mediaUpload.data.url);
+  assert.equal(actualImage.status,200);
+  assert.equal(actualImage.headers.get('content-type'),'image/png');
+  assert.deepEqual(Buffer.from(await actualImage.arrayBuffer()),png);
+
   const browse=await request('/api/bootstrap');assert.ok(browse.data.items.find(p=>p.id===id));
   const selfOrder=await request('/api/orders',{method:'POST',cookie:seller,body:{lines:[{id,qty:1}],payment:'demo'}});assert.equal(selfOrder.status,400);
   const purchased=await request('/api/orders',{method:'POST',cookie:buyer,body:{lines:[{id:'M05',qty:2}],payment:'demo'}});

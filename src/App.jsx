@@ -75,10 +75,18 @@ async function imageData(file){
  const url=URL.createObjectURL(file);
  try{return await compressPhoto(url)}finally{URL.revokeObjectURL(url)}
 }
+// Store images as their own PostgreSQL media records, not inside listing JSON.
+async function uploadListingPhoto(file){
+ const processed=await imageData(file);
+ const saved=await api('/media',{method:'POST',body:{image:processed.image}});
+ return {image:saved.url,imageHash:processed.imageHash};
+}
 async function compactOldPhoto(image){
- if(!image||typeof image!=='string'||image.length<=180000)return image;
- if(!image.startsWith('data:image/'))throw Error('Saqlangan rasm formati xato.');
- return (await compressPhoto(image)).image;
+ if(!image || typeof image!=='string' || image.startsWith('/api/media/'))return image;
+ if(!image.startsWith('data:image/'))throw Error('Saqlangan rasm manzili noto‘g‘ri.');
+ const compressed=(await compressPhoto(image)).image;
+ const saved=await api('/media',{method:'POST',body:{image:compressed}});
+ return saved.url;
 }
 
 const mapUrl=item=>Number.isFinite(item?.latitude)&&Number.isFinite(item?.longitude)?`https://www.openstreetmap.org/?mlat=${item.latitude}&mlon=${item.longitude}#map=15/${item.latitude}/${item.longitude}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item?.location||'Termiz')}`;
@@ -142,7 +150,7 @@ function SellerDashboard(){const {t,user,go,items,mine,refresh,run,orders,lang}=
 const defaultListing={name:'',description:'',kind:'Moddiy',category:'Ta’lim',price:25000,stock:1,location:'Termiz shahri, institut hududi',active:true,image:null,imageHash:null,latitude:null,longitude:null,portfolio:[]};
 function ListingEditor(){const {t,go,selectedId,mine,refresh,run,lang}=useShop();const existing=mine.find(x=>x.id===selectedId);const [form,setForm]=useState(()=>existing?{...defaultListing,...existing}:{...defaultListing});const [busy,setBusy]=useState(false);const [aiBusy,setAiBusy]=useState(false);const set=(k,v)=>setForm(f=>({...f,[k]:v}));
  useEffect(()=>{setForm(existing?{...defaultListing,...existing}:{...defaultListing})},[selectedId]);
- async function upload(e,portfolio=false){const files=Array.from(e.target.files||[]).slice(0,portfolio?3:1);if(!files.length)return;setBusy(true);try{const imageParts=await Promise.all(files.map(imageData));if(portfolio)setForm(old=>({...old,portfolio:[...(old.portfolio||[]),...imageParts.map(x=>x.image)].slice(0,3)}));else setForm(old=>({...old,...imageParts}))}catch(err){alert(err.message)}finally{setBusy(false);e.target.value=''}}
+ async function upload(e,portfolio=false){const files=Array.from(e.target.files||[]).slice(0,portfolio?3:1);if(!files.length)return;setBusy(true);try{const imageParts=await Promise.all(files.map(uploadListingPhoto));if(portfolio)setForm(old=>({...old,portfolio:[...(old.portfolio||[]),...imageParts.map(x=>x.image)].slice(0,3)}));else setForm(old=>({...old,...imageParts}))}catch(err){alert(err.message)}finally{setBusy(false);e.target.value=''}}
  function locate(){if(!navigator.geolocation)return alert('Geolocation unavailable');navigator.geolocation.getCurrentPosition(({coords})=>setForm(f=>({...f,latitude:coords.latitude,longitude:coords.longitude})),err=>alert(err.message),{enableHighAccuracy:false,timeout:9000})}
  async function suggestDesc(){if(!form.name)return;setAiBusy(true);try{const r=await api('/ai/assist',{method:'POST',body:{action:'description',title:form.name,category:form.category,lang}});set('description',r.description)}catch(e){alert(e.message)}finally{setAiBusy(false)}}
  async function save(e){e.preventDefault();setBusy(true);try{await run(async()=>{const [image,portfolio]=await Promise.all([compactOldPhoto(form.image),Promise.all((form.portfolio||[]).map(compactOldPhoto))]);const payload={...form,image,portfolio,price:Number(form.price),stock:Number(form.stock),latitude:form.latitude,longitude:form.longitude};if(new Blob([JSON.stringify(payload)]).size>1500000)throw Error('Rasmlar juda katta. Kamroq portfolio rasmi tanlang.');await api(existing?'/listings/'+existing.id:'/listings',{method:existing?'PATCH':'POST',body:payload});await refresh();go('seller')},t('listingCreated'))}finally{setBusy(false)}}

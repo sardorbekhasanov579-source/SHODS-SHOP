@@ -1,6 +1,7 @@
 import './env.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const url = process.env.DATABASE_URL;
 const prod = process.env.NODE_ENV === 'production';
@@ -8,6 +9,7 @@ if (prod && !url) throw Error('DATABASE_URL is required in production; refusing 
 const pg = url ? (await import('pg')).default : null;
 const pool = url ? new pg.Pool({connectionString: url, max: 5, connectionTimeoutMillis: 10000, idleTimeoutMillis: 30000}) : null;
 const TABLE = 'shods_app_state';
+const MEDIA_TABLE = 'shods_media';
 let version = 0;
 let activeClient = null;
 let localState = null;
@@ -31,6 +33,7 @@ export async function loadState(file, createSeed){
   }
   await pool.query(`CREATE TABLE IF NOT EXISTS ${TABLE} (id SMALLINT PRIMARY KEY CHECK (id=1), version BIGINT NOT NULL DEFAULT 0, payload JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await pool.query(`INSERT INTO ${TABLE}(id,version,payload) VALUES (1,0,$1::jsonb) ON CONFLICT (id) DO NOTHING`,[JSON.stringify(prepare(createSeed()))]);
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${MEDIA_TABLE} (id UUID PRIMARY KEY, owner_id TEXT NOT NULL, mime TEXT NOT NULL, content BYTEA NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   const result=await pool.query(`SELECT version,payload FROM ${TABLE} WHERE id=1`);
   if(result.rowCount!==1)throw Error('PostgreSQL state row missing');
   version=Number(result.rows[0].version);
@@ -93,3 +96,32 @@ export async function databaseHealth(){
   return {storage:'postgres',connected:true};
 }
 export async function closeStorage(){await operationQueue.catch(()=>{});await pool?.end();}
+
+// Image bytes are stored separately from the shared marketplace JSON document.
+// This keeps marketplace writes small and makes media persistent across Render deploys.
+export async function storeImage(stateFile, ownerId, mime, bytes){
+  if(!Buffer.isBuffer(bytes) || !bytes.length || bytes.length>600000) throw Error('INVALID_IMAGE_SIZE');
+  const id=crypto.randomUUID();
+  if(pool){
+    await pool.query(`INSERT INTO ${MEDIA_TABLE}(id,owner_id,mime,content) VALUES ($1,$2,$3,$4)`,[id,ownerId,mime,bytes]);
+  }else{
+    const dir=path.join(path.dirname(stateFile),'media');
+    fs.mkdirSync(dir,{recursive:true});
+    fs.writeFileSync(path.join(dir,id+'.bin'),bytes,{flag:'wx'});
+    fs.writeFileSync(path.join(dir,id+'.json'),JSON.stringify({mime,ownerId}),{flag:'wx'});
+  }
+  return `/api/media/${id}`;
+}
+
+export async function loadImage(stateFile,id){
+  if(!/^[a-f0-9-]{36}$/.test(id))return null;
+  if(pool){
+    const r=await pool.query(`SELECT mime,content FROM ${MEDIA_TABLE} WHERE id=$1::uuid`,[id]);
+    return r.rowCount ? {mime:r.rows[0].mime,bytes:r.rows[0].content} : null;
+  }
+  const dir=path.join(path.dirname(stateFile),'media');
+  try{
+    const {mime}=JSON.parse(fs.readFileSync(path.join(dir,id+'.json'),'utf8'));
+    return {mime,bytes:fs.readFileSync(path.join(dir,id+'.bin'))};
+  }catch(e){if(e.code==='ENOENT')return null;throw e}
+}

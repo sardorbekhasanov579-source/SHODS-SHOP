@@ -8,3 +8,6 @@ server/data/*.tmp
 .env.local
 .env.production
 *.log
+
+# Media files in local JSON development; production stores media in PostgreSQL
+server/data/media/
