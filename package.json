@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "node server/index.mjs",
     "admin:create": "node server/create-admin.mjs",
+    "admin:reset": "node server/reset-admin.mjs",
     "test:api": "node --test server/tests/*.test.mjs",
     "test": "npm run test:api",
     "db:check": "node server/db-check.mjs",

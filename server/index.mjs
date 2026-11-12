@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {loadState,persistState,databaseHealth,closeStorage} from './storage.mjs';
+import {loadState,persistState,withFreshState,databaseHealth,closeStorage} from './storage.mjs';
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const DATA=process.env.SHODS_DATA_PATH||path.join(ROOT,'server','data','db.json');
@@ -14,6 +14,24 @@ const AI_MODEL=process.env.GEMINI_MODEL||'gemini-3.5-flash-lite';
 const BOT_TOKEN=process.env.TELEGRAM_BOT_TOKEN||'';
 const BOT_NAME=(process.env.TELEGRAM_BOT_USERNAME||'').replace('@','');
 const telegramEnabled=Boolean(BOT_TOKEN&&BOT_NAME);
+// In production use an HTTPS Telegram webhook; do not run getUpdates polling.
+const PUBLIC_URL=(process.env.TELEGRAM_PUBLIC_URL||process.env.RENDER_EXTERNAL_URL||'').replace(/\/$/,'');
+const WEBHOOK_SECRET=BOT_TOKEN ? crypto.createHmac('sha256',BOT_TOKEN).update('shods-shop-telegram-webhook-v1').digest('hex') : '';
+const webhookEnabled=telegramEnabled && (process.env.NODE_ENV==='production' || process.env.SHODS_TEST_MODE==='1') && /^https:\/\/[^\s/]+/.test(PUBLIC_URL);
+const otpValue=(token,chatId)=>String(crypto.createHmac('sha256',BOT_TOKEN).update(`${token}:${chatId}`).digest().readUInt32BE(0)%1000000).padStart(6,'0');
+const otpHash=(token,code)=>crypto.createHash('sha256').update(`${token}:${code}:${BOT_TOKEN}`).digest('hex');
+async function telegramApi(method,payload){
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+  try{
+    const resp=await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal
+    });
+    const data=await resp.json();
+    if(!resp.ok || !data.ok)throw Error(`Telegram ${method}: HTTP ${resp.status}, error ${data.error_code||'unknown'}`);
+    return data.result;
+  }finally{clearTimeout(timeout)}
+}
+
 const institutions=['Termiz davlat pedagogika instituti','Termiz davlat universiteti','Termiz muhandislik va agrotexnologiyalar universiteti','Denov tadbirkorlik va pedagogika instituti','Boshqa OTM'];
 const faculties=['Jismoniy madaniyat va san’at','Ijtimoiy fanlar','Maktabgacha va boshlang‘ich ta’lim','Tillar','Tabiiy va aniq fanlar'];
 const productSeeds=[
@@ -132,7 +150,35 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   if(p==='/api/auth/login'&&method==='POST'){limitLogin(req);const b=await body(req);const u=db.users.find(x=>x.login===short(b.login,100));if(!u||!checkPassword(String(b.password||''),u.passwordHash))throw fail(401,'INVALID_CREDENTIALS');if((u.status||'active')!=='active')throw fail(403,'ACCOUNT_SUSPENDED');const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+7*86400000};await save();loginCookie(res,token);return response(res,200,{user:publicUser(u)})}
   if(p==='/api/auth/logout'&&method==='POST'){const cookie=String(req.headers.cookie||'').split(';').find(c=>c.trim().startsWith('shods_session='));if(cookie){delete db.sessions[sessionKey(cookie.trim().slice(14))];await save()}signout(res);return response(res,200,{ok:true})}
   if(p==='/api/auth/telegram/start'&&method==='POST'){if(!telegramEnabled)throw fail(503,'TELEGRAM_NOT_CONFIGURED');limitLogin(req);for(const [k,v] of Object.entries(db.telegramChallenges))if(v.expires<Date.now())delete db.telegramChallenges[k];const token=uid('reg_');db.telegramChallenges[token]={verified:false,expires:Date.now()+600000};await save();return response(res,200,{token,url:`https://t.me/${BOT_NAME}?start=${token}`,expiresIn:600})}
-  if(p==='/api/auth/telegram/status'&&method==='GET'){const code=short(url.searchParams.get('token'),100);const v=db.telegramChallenges[code];return response(res,200,{verified:!!v&&v.expires>Date.now()&&v.verified})}
+  if(p==='/api/auth/telegram/status'&&method==='GET'){const token=short(url.searchParams.get('token'),100),v=db.telegramChallenges[token];return response(res,200,{verified:!!v&&v.expires>Date.now()&&v.verified,codeSent:!!v?.otpHash})}
+  if(p==='/api/auth/telegram/confirm'&&method==='POST'){
+    if(!telegramEnabled)throw fail(503,'TELEGRAM_NOT_CONFIGURED');
+    limitLogin(req);
+    const b=await body(req),token=short(b.token,100),code=String(b.code||'').trim();
+    const c=db.telegramChallenges[token];
+    if(!c || c.expires<Date.now() || !c.otpHash)throw fail(400,'TELEGRAM_CODE_EXPIRED');
+    if(c.verified)return response(res,200,{verified:true});
+    if((c.attempts||0)>=5)throw fail(429,'TELEGRAM_TOO_MANY_ATTEMPTS');
+    c.attempts=(c.attempts||0)+1;
+    if(!/^\d{6}$/.test(code)||otpHash(token,code)!==c.otpHash){await save();return response(res,400,{error:'TELEGRAM_INVALID_CODE'})}
+    c.verified=true;delete c.otpHash;
+    await save();return response(res,200,{verified:true});
+  }
+  if(p==='/api/telegram/webhook'&&method==='POST'){
+    if(!webhookEnabled)throw fail(404,'NOT_FOUND');
+    const h=String(req.headers['x-telegram-bot-api-secret-token']||'');
+    const x=Buffer.from(h),y=Buffer.from(WEBHOOK_SECRET);
+    if(x.length!==y.length || !crypto.timingSafeEqual(x,y))throw fail(403,'FORBIDDEN');
+    const update=await body(req),message=update.message;
+    if(!message || message.chat?.type!=='private')return response(res,200,{ok:true});
+    const token=String(message.text||'').match(/^\/start(?:@\w+)?\s+(reg_[a-f0-9]{18})$/)?.[1];
+    if(!token){await telegramApi('sendMessage',{chat_id:message.chat.id,text:'SHODS SHOP: Ro‘yxatdan o‘tish sahifasidagi Telegram tugmasini bosing.'});return response(res,200,{ok:true})}
+    const registered=await verifyTelegramChallenge(token,message.chat.id);
+    if(!registered){await telegramApi('sendMessage',{chat_id:message.chat.id,text:'Havola eskirgan yoki ushbu Telegram hisobidan foydalanilgan. Saytdan yangi tasdiqlash havolasini oling.'});return response(res,200,{ok:true})}
+    const code=otpValue(token,message.chat.id);
+    await telegramApi('sendMessage',{chat_id:message.chat.id,text:`SHODS SHOP tasdiqlash kodi: ${code}\nKod 10 daqiqa amal qiladi. Hech kimga bermang.`});
+    return response(res,200,{ok:true});
+  }
   if(p==='/api/auth/register'&&method==='POST'){limitLogin(req);const b=await body(req);const name=short(b.name,100),login=short(b.login,45).toLowerCase(),password=String(b.password||'');if(!name||!login||!/^[a-z0-9_]{4,45}$/.test(login)||password.length<8||password.length>128||!short(b.institute)||!short(b.faculty)||!short(b.direction)||!Number.isInteger(Number(b.course))||Number(b.course)<1||Number(b.course)>6)throw fail(400,'INVALID_REGISTRATION');if(db.users.some(u=>u.login===login))throw fail(409,'LOGIN_TAKEN');if(process.env.NODE_ENV==='production'&&!telegramEnabled)throw fail(503,'TELEGRAM_NOT_CONFIGURED');if(telegramEnabled){const challenge=db.telegramChallenges[clean(b.telegramToken)];if(!challenge||!challenge.verified||challenge.expires<Date.now())throw fail(403,'TELEGRAM_REQUIRED');if(db.users.some(u=>u.telegramChatId===challenge.chatId))throw fail(409,'TELEGRAM_ALREADY_USED');delete db.telegramChallenges[clean(b.telegramToken)];b.telegramChatId=challenge.chatId;}
     const u={id:uid('U_'),name,login,passwordHash:hashPassword(password),institute:short(b.institute,140),faculty:short(b.faculty,140),direction:short(b.direction,140),course:Number(b.course),role:'student',status:'active',...(b.telegramChatId?{telegramChatId:b.telegramChatId}:{})};db.users.push(u);await save();const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+7*86400000};await save();loginCookie(res,token);return response(res,201,{user:publicUser(u)})}
   if(p==='/api/listings/mine'&&method==='GET'){const u=authed(req);return response(res,200,{items:db.items.filter(i=>i.seller===u.id).map(itemPublic)})}
@@ -212,7 +258,11 @@ async function handle(req,res){try{
       if(source!==incomingHost)throw fail(403,'INVALID_ORIGIN');
     }
   }
-  if(req.url?.startsWith('/api/'))return await router(req,res);if(req.method!=='GET')throw fail(405,'METHOD_NOT_ALLOWED');const dist=path.join(ROOT,'dist');let u;try{u=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{throw fail(400,'INVALID_URL')}const requestFile=path.resolve(dist,'.'+u);if(!requestFile.startsWith(dist+path.sep)&&requestFile!==dist)throw fail(403,'FORBIDDEN');const filename=fs.existsSync(requestFile)&&fs.statSync(requestFile).isFile()?requestFile:path.join(dist,'index.html');if(!fs.existsSync(filename))return response(res,404,{error:'Build not found. Run npm run dev or npm run build.'});const contentTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};res.writeHead(200,{'Content-Type':contentTypes[path.extname(filename)]||'application/octet-stream','Cache-Control':filename.endsWith('index.html')?'no-cache':'public, max-age=3600'});fs.createReadStream(filename).pipe(res);}catch(e){if(!res.headersSent)response(res,e.status||500,{error:e.message||'SERVER_ERROR'});else res.end();if(!e.status)console.error(e)}}
+  if(req.url?.startsWith('/api/')){
+    const p=new URL(req.url,'http://localhost').pathname;
+    const write=['POST','PUT','PATCH','DELETE'].includes(req.method||'') && p!=='/api/ai/assist';
+    return await withFreshState(DATA,write,async state=>{db=state;return router(req,res)});
+  }if(req.method!=='GET')throw fail(405,'METHOD_NOT_ALLOWED');const dist=path.join(ROOT,'dist');let u;try{u=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{throw fail(400,'INVALID_URL')}const requestFile=path.resolve(dist,'.'+u);if(!requestFile.startsWith(dist+path.sep)&&requestFile!==dist)throw fail(403,'FORBIDDEN');const filename=fs.existsSync(requestFile)&&fs.statSync(requestFile).isFile()?requestFile:path.join(dist,'index.html');if(!fs.existsSync(filename))return response(res,404,{error:'Build not found. Run npm run dev or npm run build.'});const contentTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};res.writeHead(200,{'Content-Type':contentTypes[path.extname(filename)]||'application/octet-stream','Cache-Control':filename.endsWith('index.html')?'no-cache':'public, max-age=3600'});fs.createReadStream(filename).pipe(res);}catch(e){if(!res.headersSent)response(res,e.status||500,{error:e.message||'SERVER_ERROR'});else res.end();if(!e.status)console.error(e)}}
 const server=http.createServer(handle);
 server.requestTimeout=30000;
 server.headersTimeout=35000;
@@ -220,39 +270,42 @@ process.on('SIGTERM',()=>{server.close(async()=>{await closeStorage();process.ex
 if(process.env.SHODS_TEST_MODE!=='1')server.listen(PORT,'0.0.0.0',()=>console.log(`SHODS SHOP API: http://localhost:${PORT} · AI:${AI_KEY?'on':'off'} Telegram:${telegramEnabled?'on':'demo'}`));
 export {server,db,handle};
 
-// Telegram /start deep-link verification. Only the server sees the bot token.
-// A challenge has a 10-minute TTL and is consumed by the registration endpoint.
-export async function verifyTelegramChallenge(token, chatId) {
-  if (!/^reg_[a-f0-9]{18}$/.test(String(token))) return false;
-  const challenge=db.telegramChallenges[token];
-  if (!challenge || challenge.expires<Date.now() || challenge.verified) return false;
-  if (!Number.isSafeInteger(Number(chatId)) || !Number(chatId)) return false;
-  if (db.users.some(user=>String(user.telegramChatId)===String(chatId))) return false;
-  challenge.verified=true;
-  challenge.chatId=String(chatId);
-  await save();
-  return true;
+// Telegram /start associates a private chat with a one-use six-digit code.
+// The code is never sent through the browser API, and only its hash is stored.
+export async function verifyTelegramChallenge(token,chatId){
+  if(!/^reg_[a-f0-9]{18}$/.test(String(token)))return false;
+  const v=db.telegramChallenges[token];
+  if(!v || v.expires<Date.now() || v.verified)return false;
+  if(!Number.isSafeInteger(Number(chatId))||!Number(chatId))return false;
+  if(db.users.some(u=>String(u.telegramChatId)===String(chatId)))return false;
+  if(v.chatId && v.chatId!==String(chatId))return false;
+  v.chatId=String(chatId);
+  v.otpHash=otpHash(token,otpValue(token,chatId));
+  v.expires=Date.now()+600000;
+  v.attempts??=0;
+  await save();return true;
 }
 
-if(telegramEnabled&&process.env.SHODS_TEST_MODE!=='1'){
-  let lastUpdate=0;
-  async function callTelegram(method,payload){
-    const controller=new AbortController();const deadline=setTimeout(()=>controller.abort(),30000);
-    try{
-      const result=await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
-      const data=await result.json();
-      if(!result.ok||!data.ok)throw Error(`Telegram ${method}: HTTP ${result.status}, code ${data.error_code||'unknown'}`);
-      return data.result;
-    }finally{clearTimeout(deadline)}
-  }
-  (async function poll(){while(true){try{
-    const updates=await callTelegram('getUpdates',{offset:lastUpdate+1,timeout:20,allowed_updates:['message']});
-    for(const update of updates){lastUpdate=Math.max(lastUpdate,update.update_id);
-      const message=update.message;if(!message||message.chat?.type!=='private')continue;
-      const token=(message.text||'').match(/^\/start(?:@\w+)?\s+(reg_[a-f0-9]{18})$/)?.[1];
-      if(token&&await verifyTelegramChallenge(token,message.chat.id)){
-        await callTelegram('sendMessage',{chat_id:message.chat.id,text:'✅ SHODS SHOP: Telegram profilingiz tasdiqlandi. Ro‘yxatdan o‘tishni brauzerda yakunlang.'});
+if(telegramEnabled && process.env.SHODS_TEST_MODE!=='1'){
+  if(webhookEnabled){
+    const setup=async(attempt=1)=>{
+      try{
+        await telegramApi('setWebhook',{
+          url:`${PUBLIC_URL}/api/telegram/webhook`,secret_token:WEBHOOK_SECRET,
+          allowed_updates:['message'],max_connections:1,drop_pending_updates:false
+        });
+        console.log('Telegram webhook configured (OTP verification ready).');
+      }catch(e){
+        console.warn('Telegram webhook configuration failed:',e.message);
+        if(attempt<5)setTimeout(()=>setup(attempt+1),Math.min(60000,5000*attempt));
       }
-    }
-  }catch(e){console.warn('Telegram polling error:',e.message);await new Promise(r=>setTimeout(r,4000))}}})();
+    };
+    // The server is already listening when setWebhook completes.
+    void setup();
+  }else if(process.env.NODE_ENV==='production'){
+    console.warn('Telegram webhook disabled: set TELEGRAM_PUBLIC_URL to https://your-domain');
+  }else{
+    // Development does not poll or take webhook ownership from the production bot.
+    console.log('Telegram bot polling off in development; use the production webhook for real codes.');
+  }
 }
