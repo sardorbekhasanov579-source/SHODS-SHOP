@@ -121,9 +121,9 @@ function Heading({eyebrow,title,detail,action}){return <div className="section-h
 function ItemCard({item}){const {t,go,lang,addCart,favorites,toggleFavorite,user}=useShop();return <article className="product-card"><button className="photo-open" onClick={()=>go('detail',item.id)}><ImageFrame item={item}/><span className="type-label">{item.kind==='Xizmat'?t('service'):item.kind==='Raqamli'?t('digital'):t('physical')}</span></button><div className="product-details"><div className="item-category">{translatedCategory(lang,item.category)}</div><button className="item-title" onClick={()=>go('detail',item.id)}>{translatedTitle(lang,item)}</button><div className="seller-line"><GraduationCap size={13}/><span>{item.sellerName}</span></div><div className="seller-line"><MapPin size={13}/><span>{item.location}</span></div><div className="item-bottom"><div><strong>{money(item.price,lang)}</strong>{item.oldPrice>item.price&&<small className="v3-oldprice">{money(item.oldPrice,lang)}</small>}<small><Star size={12} fill="currentColor"/> {item.rating?item.rating.toFixed(1):'—'} ({item.reviewCount})</small></div><div className="card-actions"><button className="mini-icon" title={t('addFavorite')} onClick={()=>toggleFavorite(item.id)}>{favorites.includes(item.id)?<Heart size={19} fill="currentColor"/>:<Heart size={19}/>}</button><button className="add-button" title={t('addCart')} onClick={()=>addCart(item)}><Plus size={20}/></button></div></div></div></article>}
 function ItemsGrid({list}){const {t}=useShop();return list.length?<div className="products-grid">{list.map(item=><ItemCard key={item.id} item={item}/>)}</div>:<div className="empty-state"><Search size={30}/><h3>{t('noItemsFound')}</h3><p>{t('noResults')}</p></div>}
 function HomePage(){const {t,go,items,lang}=useShop();const products=items.filter(i=>i.kind!=='Xizmat'&&i.active).slice(0,4),services=items.filter(i=>i.kind==='Xizmat'&&i.active).slice(0,4);const heroTiles=[['📚',t('digital')],['🎨',t('physical')],['🧑‍💻',t('service')]];return <>
- <section className="hero"><div className="shell hero-wrap"><div className="hero-copy"><span className="hero-pill"><span className="pulse"/> {t('heroTag')}</span><h1>{t('heroA')}<br/><em>{t('heroB2')}</em></h1><p>{t('heroDesc')}</p><div className="hero-actions"><button className="button bright" onClick={()=>go('catalog')}>{t('seeProducts')} <ArrowRight size={18}/></button><button className="button ghost" onClick={()=>go('add')}>{t('sellNow')} <Plus size={17}/></button></div><div className="hero-stats"><div><strong>5</strong><span>{t('institute')}</span></div><div><strong>{items.length}+</strong><span>{t('listings')}</span></div><div><strong>2</strong><span>{t('types')}</span></div></div></div>
- <div className="hero-visual" aria-hidden="true"><div className="glow-circle"/><div className="campus-art"><div className="sky-dots">✦ ✦</div><div className="campus-roof"><GraduationCap size={56}/></div><div className="campus-building"><div className="campus-name">SHODS SHOP</div><div className="campus-windows">{Array.from({length:12},(_,i)=><span key={i}/>)}</div><div className="campus-door"/></div><div className="campus-steps"/></div><div className="float-bubble b-one"><ShoppingBag size={18}/> <span>{t('products')}</span></div><div className="float-bubble b-two"><Sparkles size={18}/> <span>SHODS AI</span></div><div className="float-bubble b-three"><Award size={18}/> <span>{t('service')}</span></div></div></div></section>
- <AdsCarousel/><NewsPreview/><main className="shell landing"><div className="benefits"><div><span><ShieldCheck/></span><b>{t('demo')}</b><p>{t('footerNote')}</p></div><div><span><UserRound/></span><b>{t('forStudents')}</b><p>{t('roleDesc')}</p></div><div><span><Sparkles/></span><b>AI yordamchi</b><p>{t('aiSubtitle')}</p></div><div><span><MapPin/></span><b>{t('address')}</b><p>{t('searchHelp')}</p></div></div>
+ <section className="hero shods-hero-integrated"><div className="shell hero-wrap shods-hero-layout"><div className="hero-copy"><span className="hero-pill"><span className="pulse"/> {t('heroTag')}</span><h1>{t('heroA')}<br/><em>{t('heroB2')}</em></h1><p>{t('heroDesc')}</p><div className="hero-actions"><button className="button bright" onClick={()=>go('catalog')}>{t('seeProducts')} <ArrowRight size={18}/></button><button className="button ghost" onClick={()=>go('add')}>{t('sellNow')} <Plus size={17}/></button></div><div className="hero-stats"><div><strong>5</strong><span>{t('institute')}</span></div><div><strong>{items.length}+</strong><span>{t('listings')}</span></div><div><strong>2</strong><span>{t('types')}</span></div></div></div>
+ <div className="shods-hero-ad-column"><AdsCarousel/></div></div></section>
+ <NewsPreview/><main className="shell landing"><div className="benefits"><div><span><ShieldCheck/></span><b>{t('demo')}</b><p>{t('footerNote')}</p></div><div><span><UserRound/></span><b>{t('forStudents')}</b><p>{t('roleDesc')}</p></div><div><span><Sparkles/></span><b>AI yordamchi</b><p>{t('aiSubtitle')}</p></div><div><span><MapPin/></span><b>{t('address')}</b><p>{t('searchHelp')}</p></div></div>
  <div className="promo-grid"><button onClick={()=>go('services')} className="promo-card promo-a"><span>{t('serviceTypes')}</span><h3>{t('studentServices')}</h3><strong>{t('viewAll')} <ArrowRight size={17}/></strong><div className="promo-emoji">📖</div></button><button onClick={()=>go('ai')} className="promo-card promo-b"><span>SHODS AI</span><h3>{t('aiTitle')}</h3><strong>{t('discover')} <ArrowRight size={17}/></strong><div className="promo-emoji">✨</div></button></div>
  <Heading eyebrow={t('topChoice')} title={t('topChoice')} detail={t('welcome')} action={<button className="text-button" onClick={()=>go('catalog')}>{t('viewAll')} <ArrowRight size={16}/></button>}/><ItemsGrid list={products}/>
  <Heading eyebrow={t('serviceChoice')} title={t('featuredServices')} detail={t('studentServices')} action={<button className="text-button" onClick={()=>go('services')}>{t('viewAll')} <ArrowRight size={16}/></button>}/><ItemsGrid list={services}/>
@@ -211,21 +211,67 @@ function AdminPage(){const {t,user,run,lang,toast,refresh}=useShop();const [tab,
  {tab==='ads'&&<AdminAdsTab/>}{tab==='news'&&<AdminNewsTab/>}
  {tab==='audit'&&<div className="surface admin-table-wrap"><table><thead><tr><th>{t('createdAt')}</th><th>{t('admin')}</th><th>{t('actions')}</th><th>{t('title')}</th></tr></thead><tbody>{rows.audit?.map(r=><tr key={r.id}><td>{readable(r.at,lang)}</td><td>{r.adminName}</td><td>{r.action}</td><td>{r.target}</td></tr>)}</tbody></table></div>}
  </div></div></div>}
-// SHODS SHOP 3.0 — controlled promotional carousel (admin content + attractive fallback slides).
+// SHODS SHOP 3.1 — ads become part of the branded home hero.
+// All slides still come from the existing admin-managed /api/ads endpoint.
 function AdsCarousel(){
- const {t,go}=useShop();const [ads,setAds]=useState([]),[index,setIndex]=useState(0),[paused,setPaused]=useState(false);
- useEffect(()=>{api('/ads').then(r=>setAds(r.ads||[])).catch(()=>{})},[]);
- const fallback=[{id:'intro1',theme:'blue',title:t('promo1'),subtitle:t('promoDesc1'),target:'add',emoji:'🎓'},
+ const {t,go,lang}=useShop();
+ const [ads,setAds]=useState([]);
+ const [index,setIndex]=useState(0);
+ const [paused,setPaused]=useState(false);
+ const [hovered,setHovered]=useState(false);
+ const [brokenImageId,setBrokenImageId]=useState(null);
+ useEffect(()=>{
+  let alive=true;
+  api('/ads').then(r=>{if(alive)setAds(Array.isArray(r.ads)?r.ads:[])}).catch(()=>{});
+  return()=>{alive=false};
+ },[]);
+ const fallback=[
+  {id:'intro1',theme:'blue',title:t('promo1'),subtitle:t('promoDesc1'),target:'add',emoji:'🎓'},
   {id:'intro2',theme:'teal',title:t('promo2'),subtitle:t('promoDesc2'),target:'services',emoji:'📚'},
-  {id:'intro3',theme:'violet',title:t('promo3'),subtitle:t('promoDesc3'),target:'ai',emoji:'✨'}];
- const slides=ads.length?ads:fallback;const active=slides[index%slides.length];
- useEffect(()=>{if(paused||slides.length<=1)return;const h=setInterval(()=>setIndex(i=>(i+1)%slides.length),5500);return()=>clearInterval(h)},[paused,slides.length]);
- return <section className="shell v3-ads" aria-label={t('ads')}><div className={'v3-ad v3-ad-'+(active.theme||'blue')} key={active.id}>
-  <div className="v3-ad-content"><span className="v3-ad-eyebrow"><Sparkles size={14}/> SHODS SHOP · {t('promo')}</span><h2>{active.title}</h2><p>{active.subtitle}</p>
-  <button type="button" className="button bright" onClick={()=>go(active.target||'catalog')}><ArrowRight size={16}/>{t('adAction')}</button></div>
-  <div className="v3-ad-visual">{active.image?<img src={active.image} alt=""/>:<span>{active.emoji||'🛍️'}</span>}</div>
-  <div className="v3-ad-controls"><button type="button" aria-label="Previous" onClick={()=>setIndex((index+slides.length-1)%slides.length)}>‹</button><div>{slides.map((_,i)=><button type="button" key={i} className={i===index?'active':''} aria-label={'Slide '+(i+1)} onClick={()=>setIndex(i)}/>)}</div><button type="button" aria-label="Next" onClick={()=>setIndex((index+1)%slides.length)}>›</button><button type="button" className="v3-ad-pause" title={paused?t('adPlay'):t('adPause')} onClick={()=>setPaused(v=>!v)}>{paused?'▶':'Ⅱ'}</button></div>
- </div></section>
+  {id:'intro3',theme:'violet',title:t('promo3'),subtitle:t('promoDesc3'),target:'ai',emoji:'✨'}
+ ];
+ const slides=ads.length?ads:fallback;
+ const activeIndex=index%slides.length;
+ const active=slides[activeIndex];
+ const visibleImage=Boolean(active.image) && brokenImageId!==active.id;
+ const theme=['blue','teal','orange','violet'].includes(active.theme)?active.theme:'blue';
+ useEffect(()=>{
+  if(paused||hovered||slides.length<2||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+  const interval=setInterval(()=>setIndex(i=>(i+1)%slides.length),5600);
+  return()=>clearInterval(interval);
+ },[paused,hovered,slides.length]);
+ const previous=()=>setIndex(i=>(i+slides.length-1)%slides.length);
+ const next=()=>setIndex(i=>(i+1)%slides.length);
+ const prevTitle=lang==='ru'?'Предыдущая реклама':lang==='en'?'Previous advertisement':'Oldingi reklama';
+ const nextTitle=lang==='ru'?'Следующая реклама':lang==='en'?'Next advertisement':'Keyingi reklama';
+ return <div className="shods-hero-ads" role="region" aria-label={t('ads')}
+  onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
+  onFocusCapture={()=>setHovered(true)} onBlurCapture={e=>{if(!e.currentTarget.contains(e.relatedTarget))setHovered(false)}}>
+  <article className={'shods-ad-card shods-ad-'+theme} key={active.id}>
+   <div className="shods-ad-head"><span className="shods-ad-kicker"><Sparkles size={15}/> SHODS SHOP <span className="shods-ad-head-dot">•</span> {t('promo')}</span>
+    <span className="shods-ad-edition"><GraduationCap size={15}/> TALABALAR BOZORI</span></div>
+   <div className="shods-ad-main">
+    <div className="shods-ad-copy">
+     <span className="shods-ad-topline">SHODS SHOP · 2026</span>
+     <h2>{active.title}</h2>
+     {active.subtitle&&<p>{active.subtitle}</p>}
+     <button type="button" className="shods-ad-cta" onClick={()=>go(active.target||'catalog')}>{t('adAction')} <ArrowRight size={17}/></button>
+    </div>
+    <div className="shods-ad-product"><div className="shods-ad-product-frame">
+     {visibleImage?<img src={active.image} alt={active.title||t('ads')} loading="eager" onError={()=>setBrokenImageId(active.id)}/>:<span role="img" aria-label={active.title}>{active.emoji||'🛍️'}</span>}
+    </div><div className="shods-ad-product-caption"><ShoppingBag size={14}/> SHODS SHOP</div></div>
+   </div>
+   <div className="shods-ad-bottom">
+    <span className="shods-ad-counter">{String(activeIndex+1).padStart(2,'0')} <span>/</span> {String(slides.length).padStart(2,'0')}</span>
+    <div className="shods-ad-navigation">
+     <button type="button" className="shods-ad-arrow" aria-label={prevTitle} onClick={previous}>‹</button>
+     <div className="shods-ad-dots">{slides.map((slide,i)=><button type="button" key={slide.id||i} className={i===activeIndex?'active':''} aria-label={'Slide '+(i+1)} aria-current={i===activeIndex?'true':undefined} onClick={()=>setIndex(i)}/>)}</div>
+     <button type="button" className="shods-ad-arrow" aria-label={nextTitle} onClick={next}>›</button>
+     <button type="button" className="shods-ad-pause" aria-label={paused?t('adPlay'):t('adPause')} onClick={()=>setPaused(p=>!p)}>{paused?'▶':'Ⅱ'}</button>
+    </div>
+   </div>
+  </article>
+ </div>;
 }
 
 function ChatsPage(){

@@ -42,3 +42,94 @@
 @media(max-width:780px){.v3-ads{margin-top:13px}.v3-ad{grid-template-columns:minmax(0,1fr) 110px;min-height:180px;padding:20px}.v3-ad-visual>span{font-size:65px}.v3-news-grid{grid-template-columns:repeat(2,1fr)}.v3-chat-layout{grid-template-columns:180px 1fr}}
 @media(max-width:540px){.v3-ad{grid-template-columns:1fr;min-height:210px;padding:21px 20px 38px}.v3-ad-visual{display:none}.v3-ad h2{font-size:22px}.v3-ad p{font-size:10px}.v3-ad-controls{right:11px;bottom:10px}.v3-news-grid,.v3-news-list,.v3-job-grid{grid-template-columns:1fr}.v3-chat-layout{grid-template-columns:1fr;gap:10px}.v3-chats-sidebar{min-height:100px;max-height:160px;overflow:auto}.v3-chat-panel{min-height:420px}.v3-chat-send .button{font-size:0;padding:11px}.v3-chat-send .button svg{width:19px}.v3-job-meta{align-items:start;flex-direction:column}.v3-news-story>img{height:165px}}
 @media(prefers-reduced-motion:reduce){.v3-ad,.v3-ad-visual>span{animation:none}}
+
+
+/* SHODS SHOP 3.1 — integrated, responsive hero advertisement.
+   Admin-managed ads are rendered INSIDE the existing blue marketplace hero.
+   All other sections, login and the old database remain unchanged. */
+.shods-hero-integrated{background:radial-gradient(circle at 80% 30%,#268dbd55 0%,transparent 37%),linear-gradient(114deg,#0a347a 0%,#1354ad 54%,#087c8c 100%)}
+.shods-hero-integrated .shods-hero-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.07fr);align-items:center;gap:clamp(20px,4vw,55px);min-height:545px;padding:54px 0 57px}
+.shods-hero-integrated .hero-copy{position:relative;z-index:2;min-width:0}
+.shods-hero-integrated .hero-copy h1{font-size:clamp(39px,4vw,57px)}
+.shods-hero-ad-column{width:100%;min-width:0;position:relative;z-index:2}
+.shods-hero-ads{width:100%;min-width:0;max-width:600px;margin-inline:auto}
+.shods-ad-card{--ad-accent:#1768b8;--ad-tint:#e8f4ff;position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:395px;overflow:hidden;background:linear-gradient(133deg,#fff 0%,#f7fbff 48%,var(--ad-tint) 100%);border:1px solid #ffffffa1;border-radius:27px;box-shadow:0 24px 62px #031b4360,0 2px 9px #063c7855;color:#163657;padding:23px 25px 17px;isolation:isolate;animation:shods-ad-entry .32s both}
+.shods-ad-card::before{content:'';position:absolute;z-index:-1;width:325px;height:325px;right:-145px;top:-125px;border-radius:50%;border:46px solid color-mix(in srgb,var(--ad-accent) 12%,transparent);pointer-events:none}
+.shods-ad-card::after{content:'';position:absolute;z-index:-1;width:195px;height:195px;left:-135px;bottom:-140px;border-radius:50%;background:color-mix(in srgb,var(--ad-accent) 11%,transparent);pointer-events:none}
+.shods-ad-card.shods-ad-blue{--ad-accent:#1768b8;--ad-tint:#e6f3ff}
+.shods-ad-card.shods-ad-teal{--ad-accent:#008f91;--ad-tint:#e0f7f3}
+.shods-ad-card.shods-ad-orange{--ad-accent:#da7829;--ad-tint:#fff0df}
+.shods-ad-card.shods-ad-violet{--ad-accent:#6858c9;--ad-tint:#efebff}
+.shods-ad-head{display:flex;align-items:center;justify-content:space-between;gap:8px;position:relative;z-index:2}
+.shods-ad-kicker{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:900;letter-spacing:.065em;color:var(--ad-accent);text-transform:uppercase}
+.shods-ad-head-dot{opacity:.38}
+.shods-ad-edition{display:flex;align-items:center;gap:5px;font-size:8px;font-weight:900;letter-spacing:.075em;color:#63819d;white-space:nowrap}
+.shods-ad-main{display:grid;grid-template-columns:minmax(0,1.03fr) minmax(0,.97fr);align-items:center;gap:10px;min-height:300px}
+.shods-ad-copy{position:relative;z-index:1;min-width:0;padding:16px 0 8px}
+.shods-ad-topline{display:inline-block;color:#6990ab;font-size:9px;font-weight:800;letter-spacing:.13em;margin-bottom:12px}
+.shods-ad-copy h2{font-size:clamp(20px,2.25vw,31px);font-weight:900;color:#113b60;line-height:1.17;letter-spacing:-.038em;margin:0 0 12px;overflow-wrap:anywhere}
+.shods-ad-copy p{font-size:11px;line-height:1.7;color:#617b93;margin:0 0 18px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.shods-ad-cta{display:inline-flex;align-items:center;justify-content:center;gap:11px;min-height:43px;padding:11px 17px;border:0;border-radius:12px;background:var(--ad-accent);color:white;font-size:11px;font-weight:800;box-shadow:0 9px 17px color-mix(in srgb,var(--ad-accent) 22%,transparent);white-space:normal;text-align:center}
+.shods-ad-cta:hover{transform:translateY(-2px);filter:brightness(1.08)}
+.shods-ad-product{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;min-width:0;position:relative}
+.shods-ad-product::before{content:'';position:absolute;top:8%;height:77%;width:107%;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--ad-accent) 19%,transparent),transparent 67%);filter:blur(20px);pointer-events:none}
+.shods-ad-product-frame{display:flex;align-items:center;justify-content:center;position:relative;width:100%;max-width:260px;height:270px;padding:12px;background:#fff;border:1px solid #dce8f0;border-radius:23px;box-shadow:0 14px 35px #0c477028,0 3px 9px #0c477014;overflow:hidden;transform:rotate(2deg);transition:transform .3s,box-shadow .3s}
+.shods-ad-product-frame:hover{transform:rotate(0deg) scale(1.025);box-shadow:0 20px 40px #0c477032}
+.shods-ad-product-frame img{display:block;width:100%;height:100%;max-height:100%;object-fit:contain;object-position:center;mix-blend-mode:multiply;filter:drop-shadow(0 7px 9px #091a2620)}
+.shods-ad-product-frame>span{display:grid;place-items:center;width:100%;height:100%;font-size:105px;filter:drop-shadow(0 9px 11px #0d3d5a26);animation:shods-ad-float 5s ease-in-out infinite}
+.shods-ad-product-caption{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.08em;font-weight:900;color:var(--ad-accent);background:#fff;border-radius:20px;padding:7px 11px;box-shadow:0 5px 18px #0b426b1c}
+.shods-ad-bottom{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;z-index:2;border-top:1px solid #1a5d8a16;padding-top:12px}
+.shods-ad-counter{font-size:11px;font-weight:900;letter-spacing:.08em;color:var(--ad-accent)}
+.shods-ad-counter span{color:#9cb0be;margin-inline:4px}
+.shods-ad-navigation{display:flex;align-items:center;gap:8px}
+.shods-ad-arrow,.shods-ad-pause{border:1px solid #bfd5e6;background:#fff;color:#2d6b9c;height:30px;min-width:30px;border-radius:10px;display:grid;place-items:center;padding:0 7px;font-size:20px;font-weight:700}
+.shods-ad-pause{font-size:12px}
+.shods-ad-arrow:hover,.shods-ad-pause:hover{background:#eaf4fc}
+.shods-ad-dots{display:flex;align-items:center;gap:5px}
+.shods-ad-dots button{height:7px;width:7px;border:0;border-radius:999px;padding:0;background:#b5cbdb;transition:width .25s}
+.shods-ad-dots button.active{width:22px;background:var(--ad-accent)}
+.shods-ad-ads button:focus-visible,.shods-hero-ads button:focus-visible{outline:3px solid #76b9ee;outline-offset:3px}
+@keyframes shods-ad-entry{from{opacity:.6;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shods-ad-float{50%{transform:translateY(-6px)}}
+@media(max-width:1040px){
+ .shods-hero-integrated .shods-hero-layout{grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:17px;padding:39px 0;min-height:485px}
+ .shods-hero-integrated .hero-copy h1{font-size:clamp(34px,4vw,48px)}
+ .shods-ad-card{min-height:360px;padding:17px 18px 13px}
+ .shods-ad-main{min-height:275px;gap:8px}
+ .shods-ad-product-frame{height:232px}
+ .shods-ad-copy h2{font-size:clamp(19px,2.5vw,26px)}
+ .shods-ad-edition{display:none}
+}
+@media(max-width:780px){
+ .shods-hero-integrated .shods-hero-layout{display:grid;grid-template-columns:1fr;gap:23px;padding:35px 0 37px;min-height:unset}
+ .shods-hero-integrated .hero-copy{max-width:650px}
+ .shods-hero-integrated .hero-copy h1{font-size:clamp(34px,7vw,49px)}
+ .shods-hero-ads{max-width:650px}
+ .shods-ad-card{min-height:320px;padding:20px 22px 15px}
+ .shods-ad-main{min-height:250px;grid-template-columns:1.1fr .9fr}
+ .shods-ad-product-frame{height:228px;max-width:240px}
+ .shods-ad-copy h2{font-size:clamp(22px,4vw,30px)}
+ .shods-ad-edition{display:flex}
+}
+@media(max-width:480px){
+ .shods-hero-integrated .shods-hero-layout{padding:28px 0 32px;gap:19px}
+ .shods-hero-integrated .hero-copy h1{font-size:33px}
+ .shods-hero-integrated .hero-stats{gap:13px}
+ .shods-ad-card{border-radius:20px;padding:16px 15px 11px;min-height:282px}
+ .shods-ad-head{gap:3px}.shods-ad-kicker{font-size:9px}.shods-ad-edition{display:none}
+ .shods-ad-main{grid-template-columns:1.07fr .93fr;min-height:215px;gap:7px}
+ .shods-ad-copy{padding:4px 0}
+ .shods-ad-topline{font-size:7px;margin-bottom:8px}
+ .shods-ad-copy h2{font-size:clamp(17px,5vw,23px);line-height:1.15;margin-bottom:8px}
+ .shods-ad-copy p{font-size:9px;line-height:1.5;margin-bottom:10px;-webkit-line-clamp:2}
+ .shods-ad-cta{font-size:10px;min-height:36px;padding:8px 10px;gap:5px}
+ .shods-ad-cta svg{width:13px}
+ .shods-ad-product-frame{height:184px;min-width:0;padding:8px;border-radius:15px}
+ .shods-ad-product-frame>span{font-size:70px}
+ .shods-ad-product-caption{font-size:7px;padding:5px 7px}
+ .shods-ad-bottom{padding-top:8px;gap:5px}
+ .shods-ad-arrow,.shods-ad-pause{min-width:26px;height:26px;border-radius:8px;font-size:17px}
+ .shods-ad-pause{font-size:11px}
+ .shods-ad-navigation{gap:4px}
+}
+@media(prefers-reduced-motion:reduce){.shods-ad-card,.shods-ad-product-frame>span{animation:none}}
