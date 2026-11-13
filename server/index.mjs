@@ -59,10 +59,10 @@ const uid=(prefix='')=>prefix+crypto.randomBytes(9).toString('hex');
 const hashPassword=(pw)=>{const salt=crypto.randomBytes(16).toString('hex');return `${salt}:${crypto.scryptSync(pw,salt,64).toString('hex')}`};
 const checkPassword=(pw,stored)=>{try{const [salt,value]=stored.split(':');const actual=crypto.scryptSync(pw,salt,64);const old=Buffer.from(value,'hex');return actual.length===old.length&&crypto.timingSafeEqual(actual,old)}catch{return false}};
 const publicUser=(u)=>u?({id:u.id,name:u.name,login:u.login,institute:u.institute,faculty:u.faculty,direction:u.direction,course:u.course,role:u.role||'student',status:u.status||'active'}):null;
-function seeds(){const names=['San’at talabasi','Tarix talabasi','Boshlang‘ich ta’lim talabasi','Tillar talabasi','Aniq fanlar talabasi'];const users=names.map((name,i)=>({id:`S0${i+1}`,name,login:`demo_s0${i+1}`,passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[i],direction:'Demo yo‘nalish',course:2,role:'student',status:'active'}));users.push({id:'X01',name:'Sinov xaridori',login:'demo_x01',passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[4],direction:'Sun’iy intellekt',course:1,role:'student',status:'active'});return {users,items:productSeeds.map(([id,name,kind,category,price,seller,emoji])=>({id,name,kind,category,price,seller,emoji,active:true,stock:kind==='Xizmat'?100:kind==='Raqamli'?99:20,description:`${name} — talaba tomonidan tayyorlangan ${kind==='Xizmat'?'xizmat':'mahsulot'}.`,location:kind==='Xizmat'?'Onlayn':'Termiz shahri, institut hududi',image:null,imageHash:null,createdAt:now()})),orders:[],reviews:[],tickets:[],favorites:{},audit:[]}};
+function seeds(){const names=['San’at talabasi','Tarix talabasi','Boshlang‘ich ta’lim talabasi','Tillar talabasi','Aniq fanlar talabasi'];const users=names.map((name,i)=>({id:`S0${i+1}`,name,login:`demo_s0${i+1}`,passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[i],direction:'Demo yo‘nalish',course:2,role:'student',status:'active'}));users.push({id:'X01',name:'Sinov xaridori',login:'demo_x01',passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[4],direction:'Sun’iy intellekt',course:1,role:'student',status:'active'});return {users,items:productSeeds.map(([id,name,kind,category,price,seller,emoji])=>({id,name,kind,category,price,seller,emoji,active:true,stock:kind==='Xizmat'?100:kind==='Raqamli'?99:20,description:`${name} — talaba tomonidan tayyorlangan ${kind==='Xizmat'?'xizmat':'mahsulot'}.`,location:kind==='Xizmat'?'Onlayn':'Termiz shahri, institut hududi',image:null,imageHash:null,createdAt:now()})),orders:[],reviews:[],tickets:[],favorites:{},audit:[],ads:[],chats:[],messages:[],jobs:[],proposals:[],notifications:[],news:[]}};
 // Demonstration identities never appear in real production accounts.
 const seedDemo = process.env.NODE_ENV !== 'production' && process.env.SEED_DEMO !== '0';
-function initialState(){return seedDemo?seeds():{users:[],items:[],orders:[],reviews:[],tickets:[],favorites:{},audit:[],sessions:{}}}
+function initialState(){return seedDemo?seeds():{users:[],items:[],orders:[],reviews:[],tickets:[],favorites:{},audit:[],sessions:{},ads:[],chats:[],messages:[],jobs:[],proposals:[],notifications:[],news:[]}}
 let db=await loadState(DATA,initialState);
 async function save(){await persistState(DATA,db)}
 const loginAttempts=new Map();db.telegramChallenges??={};
@@ -77,6 +77,30 @@ const signout=(res)=>res.setHeader('Set-Cookie','shods_session=; HttpOnly; Path=
 function getUser(req){const cookie=String(req.headers.cookie||'').split(';').map(p=>p.trim()).find(c=>c.startsWith('shods_session='));const token=cookie?.slice(14);const sess=token&&db.sessions[sessionKey(token)];if(!sess||sess.expires<Date.now())return null;const user=db.users.find(u=>u.id===sess.id);return user&&(user.status||'active')==='active'?user:null}
 function authed(req){const user=getUser(req);if(!user)throw fail(401,'LOGIN_REQUIRED');return user}
 function administrator(req){const user=authed(req);if(user.role!=='admin')throw fail(403,'ADMIN_ONLY');return user}
+function notify(userId,type,title,detail='',link=''){
+  db.notifications??=[];
+  db.notifications.unshift({id:uid('N_'),userId,type,title:short(title,140),detail:short(detail,260),link:short(link,140),read:false,createdAt:now()});
+  db.notifications=db.notifications.slice(0,3000);
+}
+// One global notification per announcement: avoids copying the same alert
+// into the JSON state once per registered student. Read status stays per-user.
+function notifyAll(type,title,detail='',link='news',targetId=null){
+  db.notifications??=[];
+  db.notifications.unshift({id:uid('N_'),audience:'all',type,title:short(title,140),detail:short(detail,260),link:short(link,140),targetId,readBy:[],createdAt:now()});
+  db.notifications=db.notifications.slice(0,3000);
+}
+function newsPayload(b){
+  const title=short(b.title,125),body=short(b.body,3500),kind=short(b.kind||'news',20);
+  if(title.length<5 || body.length<15 || !['news','offer','notice'].includes(kind))throw fail(400,'INVALID_NEWS');
+  const image=b.image||null;if(image&&!imageOk(image))throw fail(400,'INVALID_IMAGE');
+  return {title,body,kind,image,titleRu:short(b.titleRu,125),bodyRu:short(b.bodyRu,3500),titleEn:short(b.titleEn,125),bodyEn:short(b.bodyEn,3500),published:b.published!==false};
+}
+function chatSummary(c,viewer){
+  const other=db.users.find(u=>u.id===(c.members.find(id=>id!==viewer)||''));
+  const last=(db.messages||[]).filter(m=>m.chatId===c.id).at(-1);
+  return {...c,other:other?publicUser(other):null,lastMessage:last?{text:last.text,createdAt:last.createdAt,from:last.from}:null};
+}
+function visibleJob(job){return job.status!=='hidden' && job.status!=='closed';}
 function audit(admin,action,target,detail=''){db.audit??=[];db.audit.unshift({id:uid('A_'),admin:admin.id,adminName:admin.name,action,target,detail:short(detail,150),at:now()});db.audit=db.audit.slice(0,500)}
 const visible=(item)=>item.active&&item.moderation!=='hidden';
 const imageOk=(s)=>!s||(typeof s==='string'&&( /^\/api\/media\/[a-f0-9-]{36}$/.test(s) || (s.length<1300000&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s)) ));
@@ -84,7 +108,7 @@ async function body(req){const chunks=[];let size=0;for await(const chunk of req
 const reviewsFor=(itemId)=>db.reviews.filter(r=>r.itemId===itemId);
 function itemPublic(p){const {portfolio:_legacyPortfolio,...safeItem}=p;const seller=db.users.find(u=>u.id===p.seller);const reviews=reviewsFor(p.id);return {...safeItem,sellerName:seller?.name||'Talaba',institute:seller?.institute||'',faculty:seller?.faculty||'',rating:reviews.length?reviews.reduce((n,r)=>n+r.stars,0)/reviews.length:0,reviewCount:reviews.length};}
 const allowedKinds=['Moddiy','Raqamli','Xizmat'];
-function listingPayload(data,user){const name=short(data.name,120),description=short(data.description,1400),category=short(data.category,100);const kind=clean(data.kind);const price=Number(data.price),stock=positiveInt(data.stock);const location=short(data.location,200);if(!name||!category||!allowedKinds.includes(kind)||!Number.isSafeInteger(price)||price<=0||price>1e9||stock<1||stock>100000||!location)throw fail(400,'INVALID_LISTING');if(!imageOk(data.image))throw fail(400,'INVALID_IMAGE');return {name,description,kind,category,price,stock,location,latitude:typeof data.latitude==='number'&&Math.abs(data.latitude)<=90?data.latitude:null,longitude:typeof data.longitude==='number'&&Math.abs(data.longitude)<=180?data.longitude:null,active:!!data.active,image:data.image||null,imageHash:/^[a-f0-9]{16}$/.test(data.imageHash||'')?data.imageHash:null,emoji:kind==='Xizmat'?'🧑‍💻':kind==='Raqamli'?'📘':'📦',seller:user.id}}
+function listingPayload(data,user){const name=short(data.name,120),description=short(data.description,1400),category=short(data.category,100);const kind=clean(data.kind);const price=Number(data.price),stock=positiveInt(data.stock);const location=short(data.location,200);if(!name||!category||!allowedKinds.includes(kind)||!Number.isSafeInteger(price)||price<=0||price>1e9||stock<1||stock>100000||!location)throw fail(400,'INVALID_LISTING');if(!imageOk(data.image))throw fail(400,'INVALID_IMAGE');return {name,description,kind,category,price,stock,location,latitude:typeof data.latitude==='number'&&Math.abs(data.latitude)<=90?data.latitude:null,longitude:typeof data.longitude==='number'&&Math.abs(data.longitude)<=180?data.longitude:null,active:!!data.active,oldPrice:Number.isSafeInteger(Number(data.oldPrice))&&Number(data.oldPrice)>price&&Number(data.oldPrice)<=1e9?Number(data.oldPrice):null,image:data.image||null,imageHash:/^[a-f0-9]{16}$/.test(data.imageHash||'')?data.imageHash:null,emoji:kind==='Xizmat'?'🧑‍💻':kind==='Raqamli'?'📘':'📦',seller:user.id}}
 const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
 function ham(a,b){let n=0;for(let i=0;i<16;i++){let v=parseInt(a[i],16)^parseInt(b[i],16);n+=((v>>0)&1)+((v>>1)&1)+((v>>2)&1)+((v>>3)&1)}return n}
 function finder(query){const words=clean(query).toLocaleLowerCase().split(/\s+/).filter(w=>w.length>2);return db.items.filter(p=>visible(p)).map(p=>{const seller=db.users.find(u=>u.id===p.seller);const hay=[p.name,p.description,p.category,seller?.faculty].join(' ').toLocaleLowerCase();const match=words.reduce((s,w)=>s+(hay.includes(w)?1:0),0);const rs=reviewsFor(p.id);const rating=rs.length?rs.reduce((s,r)=>s+r.stars,0)/rs.length:0;return {p,score:match*10+rating/5}}).filter(x=>x.score>0&&(words.length?x.score>=10:true)).sort((a,b)=>b.score-a.score).slice(0,8).map(x=>itemPublic(x.p))}
@@ -203,9 +227,9 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   if(listingMatch&&method==='PATCH'){const u=authed(req),item=db.items.find(i=>i.id===listingMatch[1]);if(!item)throw fail(404,'NOT_FOUND');if(item.seller!==u.id)throw fail(403,'FORBIDDEN');const b=await body(req);const merged={...item,...b,kind:b.kind??item.kind};const validated=listingPayload(merged,u);Object.assign(item,validated);delete item.portfolio;await save();return response(res,200,{item:itemPublic(item)})}
   if(p==='/api/orders'&&method==='GET'){const u=authed(req);const type=url.searchParams.get('type')||'buyer';const rows=db.orders.filter(o=>type==='seller'?o.seller===u.id:type==='both'?(o.seller===u.id||o.buyer===u.id):o.buyer===u.id);return response(res,200,{orders:rows.map(o=>({...o,buyerName:db.users.find(u=>u.id===o.buyer)?.name||'',sellerName:db.users.find(u=>u.id===o.seller)?.name||''}))})}
   if(p==='/api/orders'&&method==='POST'){const u=authed(req),b=await body(req);if(b.payment!=='demo')throw fail(400,'DEMO_ONLY');if(!Array.isArray(b.lines)||b.lines.length===0||b.lines.length>30)throw fail(400,'EMPTY_CART');const seen=new Set(),rows=[];for(const l of b.lines){if(seen.has(l.id))throw fail(400,'DUPLICATE_ITEM');seen.add(l.id);const item=db.items.find(p=>p.id===l.id);const qty=positiveInt(l.qty);if(!item||!visible(item)||!qty||qty>item.stock||qty>1000)throw fail(400,'UNAVAILABLE_ITEM');if(item.seller===u.id)throw fail(400,'OWN_ITEM');rows.push({item,qty})}
-    const created=rows.map(({item,qty})=>({id:uid('B_'),itemId:item.id,name:item.name,price:item.price,qty,total:item.price*qty,seller:item.seller,buyer:u.id,buyerCode:u.id,location:item.location,latitude:item.latitude,longitude:item.longitude,kind:item.kind,payment:'demo_paid',status:'new',createdAt:now()}));for(const r of rows)r.item.stock-=r.qty;db.orders.unshift(...created);await save();return response(res,201,{orders:created})}
+    const created=rows.map(({item,qty})=>({id:uid('B_'),itemId:item.id,name:item.name,price:item.price,qty,total:item.price*qty,seller:item.seller,buyer:u.id,buyerCode:u.id,location:item.location,latitude:item.latitude,longitude:item.longitude,kind:item.kind,payment:'demo_paid',status:'new',createdAt:now()}));for(const r of rows)r.item.stock-=r.qty;db.orders.unshift(...created);for(const o of created)notify(o.seller,'order','Yangi buyurtma',`${o.name} · ${o.qty} dona`,'seller');await save();return response(res,201,{orders:created})}
   const orderMatch=p.match(/^\/api\/orders\/([^/]+)$/);
-  if(orderMatch&&method==='PATCH'){const u=authed(req),order=db.orders.find(o=>o.id===orderMatch[1]);if(!order)throw fail(404,'NOT_FOUND');if(order.seller!==u.id)throw fail(403,'FORBIDDEN');const b=await body(req),next=clean(b.status);const transitions={new:['accepted','cancelled'],accepted:['completed','cancelled'],completed:[],cancelled:[]};if(!transitions[order.status]?.includes(next))throw fail(400,'INVALID_STATUS');if(next==='cancelled'){const item=db.items.find(x=>x.id===order.itemId);if(item)item.stock+=order.qty}order.status=next;order.updatedAt=now();await save();return response(res,200,{order})}
+  if(orderMatch&&method==='PATCH'){const u=authed(req),order=db.orders.find(o=>o.id===orderMatch[1]);if(!order)throw fail(404,'NOT_FOUND');if(order.seller!==u.id)throw fail(403,'FORBIDDEN');const b=await body(req),next=clean(b.status);const transitions={new:['accepted','cancelled'],accepted:['completed','cancelled'],completed:[],cancelled:[]};if(!transitions[order.status]?.includes(next))throw fail(400,'INVALID_STATUS');if(next==='cancelled'){const item=db.items.find(x=>x.id===order.itemId);if(item)item.stock+=order.qty}order.status=next;order.updatedAt=now();notify(order.buyer,'order',`Buyurtma: ${next}`,order.name,'buyer');await save();return response(res,200,{order})}
   const sellerProfileMatch=p.match(/^\/api\/sellers\/([^/]+)$/);
   if(sellerProfileMatch&&method==='GET'){
     const u=db.users.find(x=>x.id===sellerProfileMatch[1]);if(!u)throw fail(404,'NOT_FOUND');
@@ -220,13 +244,137 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   if(p==='/api/favorites'&&method==='GET'){const u=authed(req);return response(res,200,{ids:db.favorites[u.id]||[]})}
   const favMatch=p.match(/^\/api\/favorites\/([^/]+)$/);
   if(favMatch&&method==='POST'){const u=authed(req);if(!db.items.some(i=>i.id===favMatch[1]&&visible(i)))throw fail(404,'NOT_FOUND');let list=db.favorites[u.id]||[];list=list.includes(favMatch[1])?list.filter(x=>x!==favMatch[1]):[...list,favMatch[1]];db.favorites[u.id]=list;await save();return response(res,200,{ids:list})}
+  // V3: Admin-curated news, offers and announcements with an in-app broadcast.
+  if(p==='/api/news' && method==='GET')return response(res,200,{news:(db.news||[]).filter(n=>n.published).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,80)});
+  if(p==='/api/admin/news' && method==='GET'){administrator(req);return response(res,200,{news:db.news||[]})}
+  if(p==='/api/admin/news' && method==='POST'){
+    const admin=administrator(req),b=await body(req),details=newsPayload(b);
+    const entry={id:uid('NEWS_'),...details,authorId:admin.id,createdAt:now(),updatedAt:now(),broadcastedAt:null};
+    db.news??=[];db.news.unshift(entry);
+    if(entry.published&&b.broadcast===true){
+      notifyAll('news',entry.title,entry.body.slice(0,180),'news',entry.id);entry.broadcastedAt=now();
+    }
+    audit(admin,'news.create',entry.id,entry.title);await save();return response(res,201,{news:entry});
+  }
+  const newsMatch=p.match(/^\/api\/admin\/news\/([^/]+)$/);
+  if(newsMatch&&method==='PATCH'){
+    const admin=administrator(req),entry=(db.news||[]).find(n=>n.id===newsMatch[1]),b=await body(req);
+    if(!entry)throw fail(404,'NOT_FOUND');
+    const next={...entry,...b};Object.assign(entry,newsPayload(next));entry.updatedAt=now();
+    if(entry.published && b.broadcast===true){
+      notifyAll('news',entry.title,entry.body.slice(0,180),'news',entry.id);entry.broadcastedAt=now();
+    }
+    audit(admin,'news.update',entry.id,entry.title);await save();return response(res,200,{news:entry});
+  }
+  if(newsMatch&&method==='DELETE'){
+    const admin=administrator(req),idx=(db.news||[]).findIndex(n=>n.id===newsMatch[1]);
+    if(idx<0)throw fail(404,'NOT_FOUND');db.news.splice(idx,1);audit(admin,'news.delete',newsMatch[1]);await save();return response(res,200,{ok:true});
+  }
+  // V3: public marketing banners. Only admins may create, edit or delete.
+  if(p==='/api/ads'&&method==='GET')return response(res,200,{ads:(db.ads||[]).filter(a=>a.active && (!a.startsAt||a.startsAt<=now()) && (!a.endsAt||a.endsAt>=now())).slice(0,24)});
+  if(p==='/api/admin/ads'&&method==='GET'){administrator(req);return response(res,200,{ads:db.ads||[]})}
+  if(p==='/api/admin/ads'&&method==='POST'){
+    const a=administrator(req),b=await body(req),title=short(b.title,100),subtitle=short(b.subtitle,200);
+    if(!title)throw fail(400,'AD_TITLE_REQUIRED');
+    const theme=['blue','teal','orange','violet'].includes(b.theme)?b.theme:'blue';
+    const target=['catalog','services','ai','jobs','home'].includes(b.target)?b.target:'catalog';
+    const image=b.image||null;if(image && !imageOk(image))throw fail(400,'INVALID_IMAGE');
+    const ad={id:uid('AD_'),title,subtitle,theme,target,image,active:b.active!==false,createdAt:now(),createdBy:a.id};
+    db.ads.unshift(ad);audit(a,'ad.create',ad.id,title);await save();return response(res,201,{ad});
+  }
+  const adMatch=p.match(/^\/api\/admin\/ads\/([^/]+)$/);
+  if(adMatch&&method==='PATCH'){
+    const a=administrator(req),ad=(db.ads||[]).find(x=>x.id===adMatch[1]),b=await body(req);if(!ad)throw fail(404,'NOT_FOUND');
+    if(b.title!==undefined){const v=short(b.title,100);if(!v)throw fail(400,'AD_TITLE_REQUIRED');ad.title=v}
+    if(b.subtitle!==undefined)ad.subtitle=short(b.subtitle,200);
+    if(b.active!==undefined)ad.active=!!b.active;
+    if(b.theme!==undefined){if(!['blue','teal','orange','violet'].includes(b.theme))throw fail(400,'INVALID_AD_THEME');ad.theme=b.theme}
+    if(b.target!==undefined){if(!['catalog','services','ai','jobs','home'].includes(b.target))throw fail(400,'INVALID_AD_TARGET');ad.target=b.target}
+    if(b.image!==undefined){if(b.image&&!imageOk(b.image))throw fail(400,'INVALID_IMAGE');ad.image=b.image||null}
+    audit(a,'ad.update',ad.id);await save();return response(res,200,{ad});
+  }
+  if(adMatch&&method==='DELETE'){const a=administrator(req);const i=(db.ads||[]).findIndex(x=>x.id===adMatch[1]);if(i<0)throw fail(404,'NOT_FOUND');db.ads.splice(i,1);audit(a,'ad.delete',adMatch[1]);await save();return response(res,200,{ok:true});}
+
+  // V3: secure one-to-one messenger (only chat participants can read/send).
+  if(p==='/api/chats'&&method==='GET'){
+    const u=authed(req);return response(res,200,{chats:(db.chats||[]).filter(c=>c.members.includes(u.id)).map(c=>chatSummary(c,u.id)).sort((a,b)=>(b.lastMessage?.createdAt||b.createdAt).localeCompare(a.lastMessage?.createdAt||a.createdAt))});
+  }
+  if(p==='/api/chats'&&method==='POST'){
+    const u=authed(req),b=await body(req),item=db.items.find(x=>x.id===short(b.itemId,80)),otherId=item?.seller||short(b.userId,80);
+    const other=db.users.find(x=>x.id===otherId && (x.status||'active')==='active');
+    if(!other||other.id===u.id)throw fail(400,'INVALID_RECIPIENT');
+    const members=[u.id,other.id].sort();
+    let chat=(db.chats||[]).find(c=>c.members?.length===2&&members.every(x=>c.members.includes(x)));
+    if(!chat){chat={id:uid('C_'),members,createdAt:now(),itemId:item?.id||null};db.chats??=[];db.chats.push(chat);await save()}
+    return response(res,200,{chat:chatSummary(chat,u.id)});
+  }
+  const msgMatch=p.match(/^\/api\/chats\/([^/]+)\/messages$/);
+  if(msgMatch&&method==='GET'){
+    const u=authed(req),c=(db.chats||[]).find(x=>x.id===msgMatch[1]);if(!c||!c.members.includes(u.id))throw fail(403,'FORBIDDEN');
+    return response(res,200,{messages:(db.messages||[]).filter(m=>m.chatId===c.id).slice(-100)});
+  }
+  if(msgMatch&&method==='POST'){
+    const u=authed(req),c=(db.chats||[]).find(x=>x.id===msgMatch[1]),b=await body(req);
+    if(!c||!c.members.includes(u.id))throw fail(403,'FORBIDDEN');
+    const text=short(b.text,1200);if(text.length<1)throw fail(400,'EMPTY_MESSAGE');
+    const recent=(db.messages||[]).filter(m=>m.from===u.id && Date.now()-Date.parse(m.createdAt)<60000);
+    if(recent.length>=20)throw fail(429,'MESSAGE_RATE_LIMIT');
+    const message={id:uid('M_'),chatId:c.id,from:u.id,text,createdAt:now()};db.messages??=[];db.messages.push(message);
+    const target=c.members.find(id=>id!==u.id);notify(target,'chat',`Xabar: ${u.name}`,text,'chats');await save();return response(res,201,{message});
+  }
+  // V3: job requests. Buyer posts, providers propose; only owner accepts.
+  if(p==='/api/jobs'&&method==='GET'){
+    return response(res,200,{jobs:(db.jobs||[]).filter(visibleJob).map(j=>({...j,buyerName:db.users.find(x=>x.id===j.buyer)?.name||'Talaba',proposalCount:(db.proposals||[]).filter(x=>x.jobId===j.id).length})).slice(0,250)});
+  }
+  if(p==='/api/jobs/mine'&&method==='GET'){
+    const u=authed(req);return response(res,200,{jobs:(db.jobs||[]).filter(j=>j.buyer===u.id),proposals:(db.proposals||[]).filter(x=>x.seller===u.id)});
+  }
+  if(p==='/api/jobs'&&method==='POST'){
+    const u=authed(req),b=await body(req);const title=short(b.title,120),description=short(b.description,1500),category=short(b.category,80),budget=Number(b.budget);
+    if(title.length<5||description.length<15||!category||!Number.isSafeInteger(budget)||budget<1000||budget>1000000000)throw fail(400,'INVALID_JOB');
+    const job={id:uid('J_'),buyer:u.id,title,description,category,budget,deadline:short(b.deadline,30),status:'open',createdAt:now()};db.jobs??=[];db.jobs.unshift(job);await save();return response(res,201,{job});
+  }
+  const proposalMatch=p.match(/^\/api\/jobs\/([^/]+)\/proposals$/);
+  if(proposalMatch&&method==='GET'){
+    const u=authed(req),job=(db.jobs||[]).find(j=>j.id===proposalMatch[1]);if(!job)throw fail(404,'NOT_FOUND');
+    const proposals=(db.proposals||[]).filter(x=>x.jobId===job.id);
+    return response(res,200,{proposals:(job.buyer===u.id?proposals:proposals.filter(x=>x.seller===u.id)).map(x=>({...x,sellerName:db.users.find(u=>u.id===x.seller)?.name||''}))});
+  }
+  if(proposalMatch&&method==='POST'){
+    const u=authed(req),job=(db.jobs||[]).find(j=>j.id===proposalMatch[1]),b=await body(req),price=Number(b.price),note=short(b.note,700);
+    if(!job||job.status!=='open')throw fail(400,'JOB_CLOSED');if(job.buyer===u.id)throw fail(403,'OWN_JOB');
+    if(!Number.isSafeInteger(price)||price<1000||price>1000000000||note.length<8)throw fail(400,'INVALID_PROPOSAL');
+    if((db.proposals||[]).some(p=>p.jobId===job.id&&p.seller===u.id))throw fail(409,'ALREADY_PROPOSED');
+    const proposal={id:uid('P_'),jobId:job.id,seller:u.id,price,note,status:'pending',createdAt:now()};db.proposals??=[];db.proposals.unshift(proposal);
+    notify(job.buyer,'proposal','Yangi taklif',`${job.title} · ${u.name}`,'jobs');await save();return response(res,201,{proposal});
+  }
+  const jobAccept=p.match(/^\/api\/jobs\/([^/]+)\/accept$/);
+  if(jobAccept&&method==='PATCH'){
+    const u=authed(req),job=(db.jobs||[]).find(j=>j.id===jobAccept[1]),b=await body(req),proposal=(db.proposals||[]).find(x=>x.id===b.proposalId&&x.jobId===job?.id);
+    if(!job||job.buyer!==u.id)throw fail(403,'FORBIDDEN');if(job.status!=='open'||!proposal)throw fail(400,'INVALID_PROPOSAL');
+    job.status='assigned';job.acceptedProposal=proposal.id;proposal.status='accepted';
+    for(const p2 of db.proposals.filter(x=>x.jobId===job.id&&x.id!==proposal.id))p2.status='declined';
+    notify(proposal.seller,'job','Taklifingiz tanlandi',job.title,'jobs');await save();return response(res,200,{job,proposal});
+  }
+  // V3: private in-app alerts.
+  if(p==='/api/notifications'&&method==='GET'){
+    const u=authed(req);return response(res,200,{notifications:(db.notifications||[]).filter(n=>n.userId===u.id||n.audience==='all').slice(0,80).map(n=>({...n,read:n.audience==='all'?Boolean(n.readBy?.includes(u.id)):Boolean(n.read),readBy:undefined}))});
+  }
+  if(p==='/api/notifications/read'&&method==='POST'){
+    const u=authed(req),b=await body(req);for(const n of db.notifications||[]){
+      if(b.id&&n.id!==b.id)continue;
+      if(n.userId===u.id)n.read=true;
+      if(n.audience==='all'){n.readBy??=[];if(!n.readBy.includes(u.id))n.readBy.push(u.id)}
+    }
+    await save();return response(res,200,{ok:true});
+  }
   if(p==='/api/support'&&method==='GET'){const u=authed(req);return response(res,200,{tickets:db.tickets.filter(x=>x.user===u.id)})}
   if(p==='/api/support'&&method==='POST'){const u=authed(req),b=await body(req);const message=short(b.message,1500),topic=short(b.topic,100);if(!message||!topic)throw fail(400,'INVALID_TICKET');const ticket={id:uid('T_'),user:u.id,topic,message,status:'new',createdAt:now()};db.tickets.unshift(ticket);await save();return response(res,201,{ticket})}
   // All administrative actions require a verified administrator session on the server.
   if(p==='/api/admin/overview'&&method==='GET'){
     administrator(req);
     const total=db.orders.reduce((sum,o)=>sum+(o.status==='cancelled'?0:o.total),0);
-    return response(res,200,{stats:{users:db.users.length,activeUsers:db.users.filter(u=>(u.status||'active')==='active').length,listings:db.items.length,activeListings:db.items.filter(visible).length,orders:db.orders.length,demoTurnover:total,ticketsOpen:db.tickets.filter(t=>t.status==='new'||t.status==='open').length,reviews:db.reviews.length},recentOrders:db.orders.slice(0,8),recentTickets:db.tickets.slice(0,6),recentUsers:db.users.slice(-6).reverse().map(publicUser)});
+    return response(res,200,{stats:{users:db.users.length,activeUsers:db.users.filter(u=>(u.status||'active')==='active').length,listings:db.items.length,activeListings:db.items.filter(visible).length,orders:db.orders.length,demoTurnover:total,newsPublished:(db.news||[]).filter(n=>n.published).length,adsActive:(db.ads||[]).filter(a=>a.active).length,jobsOpen:(db.jobs||[]).filter(j=>j.status==='open').length,chats:(db.chats||[]).length,ticketsOpen:db.tickets.filter(t=>t.status==='new'||t.status==='open').length,reviews:db.reviews.length},recentOrders:db.orders.slice(0,8),recentTickets:db.tickets.slice(0,6),recentUsers:db.users.slice(-6).reverse().map(publicUser)});
   }
   if(p==='/api/admin/users'&&method==='GET'){administrator(req);return response(res,200,{users:db.users.map(publicUser)});}
   const adminUserMatch=p.match(/^\/api\/admin\/users\/([^/]+)$/);
@@ -258,7 +406,7 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   if(p==='/api/admin/audit'&&method==='GET'){administrator(req);return response(res,200,{audit:(db.audit||[]).slice(0,200)});}
   if(p==='/api/admin/export'&&method==='GET'){
     const a=administrator(req);audit(a,'data.export','backup');await save();
-    return response(res,200,{exportedAt:now(),users:db.users.map(publicUser),items:db.items,orders:db.orders,reviews:db.reviews,tickets:db.tickets,audit:db.audit});
+    return response(res,200,{exportedAt:now(),users:db.users.map(publicUser),items:db.items,orders:db.orders,reviews:db.reviews,tickets:db.tickets,ads:db.ads||[],news:db.news||[],chats:db.chats||[],jobs:db.jobs||[],proposals:db.proposals||[],notifications:db.notifications||[],audit:db.audit});
   }
   if(p==='/api/ai/assist'&&method==='POST'){authed(req);const result=await aiAssist(await body(req));return response(res,200,result)}
   throw fail(404,'NOT_FOUND');

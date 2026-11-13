@@ -1,0 +1,11 @@
+SHODS SHOP 3.0 — GitHub ga push
+
+1. ZIP arxivni alohida papkaga oching.
+2. SHODS_SHOP_GITHUB_PUSH.cmd fayliga ikki marta bosing.
+3. Git va Node.js kerak. Skript GitHub repositoryni yangi papkaga clone qiladi.
+4. Barcha kodlarni nusxalaydi, npm ci, test:api va build bajaradi.
+5. Xatolik bo‘lsa PUSH QILMAYDI.
+6. Testlar o‘tsa Y tugmasi bilan tasdiqlang. GitHub akkauntingizga login talab qilinishi mumkin.
+7. Pushdan keyin Render avtomatik deployni boshlaydi.
+
+Maxfiy .env va .git fayllar nusxalanmaydi. Neon bazasi o‘zgartirilmaydi.
