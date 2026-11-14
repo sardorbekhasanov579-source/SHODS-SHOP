@@ -133,3 +133,150 @@
  .shods-ad-navigation{gap:4px}
 }
 @media(prefers-reduced-motion:reduce){.shods-ad-card,.shods-ad-product-frame>span{animation:none}}
+
+/* SHODS SHOP 4.0: receipt-first checkout, accurate payment badges, Android safe areas */
+.shods-pay-explainer{display:flex;align-items:flex-start;gap:13px;padding:19px;margin:16px 0;border:1px solid #59b0cf5c;border-radius:18px;background:linear-gradient(110deg,#e9f9ff,#effef8);color:#14435c}
+.shods-pay-explainer>svg{flex:0 0 auto;color:#148e83;margin-top:4px}
+.shods-pay-explainer strong{font-size:14px}
+.shods-pay-explainer p{margin:7px 0;font-size:12px;line-height:1.65}
+.shods-pay-explainer small{display:block;font-size:11px;color:#3c6977}
+.v4-order-note{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#187c82;margin-top:8px}
+.v4-order-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:8px;max-width:340px}
+.v4-order-actions .button,.shods-v4-order .order-cta .button{white-space:normal;text-align:center;line-height:1.3}
+.v4-order-actions small{font-size:10px;line-height:1.5;color:var(--muted)}
+.v4-paid-stamp{display:inline-flex;align-items:center;gap:5px;padding:7px 10px;border-radius:10px;background:#e3f9ef;color:#097c53;font-size:11px;font-weight:900}
+.shods-v4-order .order-cta{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+[data-theme="dark"] .shods-pay-explainer{background:linear-gradient(135deg,#12344c,#103a3e);color:#efffff;border-color:#327f84}
+[data-theme="dark"] .shods-pay-explainer small{color:#bbdce7}
+[data-theme="dark"] .v4-paid-stamp{background:#143f31;color:#80eab0}
+@media(max-width:700px){.shods-v4-order{flex-wrap:wrap;gap:13px}.shods-v4-order .order-info{flex:1 1 50%}.shods-v4-order .order-meta,.shods-v4-order .order-cta{flex:1 1 100%;align-items:flex-start;text-align:left}.v4-order-actions{justify-content:flex-start;max-width:100%}.shods-pay-explainer{padding:13px}.mobile-bar{padding-bottom:max(8px,env(safe-area-inset-bottom))}}
+
+/* SHODS SHOP 4.1: distinct Android app UI, not a scaled-down desktop site.
+   Only active inside the Capacitor Android WebView. */
+html.shods-native { --bg:#f2f7fd; --surface:#fff; --line:#e5edf6; --soft:#edf6ff; --text:#173452; --muted:#71889e; --blue:#1263c4; --cyan:#00a99f; background:#f2f7fd; }
+html.shods-native body { background:var(--bg); overflow-x:hidden; }
+html.shods-native .app { padding-bottom:calc(80px + env(safe-area-inset-bottom)); }
+html.shods-native .top-strip,
+html.shods-native .mode-bar,
+html.shods-native .footer-inner,
+html.shods-native .site-header .main-links:not(.mobile-open),
+html.shods-native .site-header .header-tools,
+html.shods-native .site-header .nav-signin,
+html.shods-native .site-header .nav-signup,
+html.shods-native .site-header .install-btn,
+html.shods-native .site-header .logout-nav,
+html.shods-native .site-header .user-actions { display:none!important; }
+html.shods-native .site-header { position:sticky;top:0;z-index:50;height:calc(64px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);background:linear-gradient(110deg,#062d63,#0c468c 65%,#057f91);border:0;box-shadow:0 8px 20px #12375c1e; }
+html.shods-native .site-header .nav-inner { width:calc(100% - 28px);gap:8px;justify-content:space-between; }
+html.shods-native .site-header .brand { color:white;font-size:19px;letter-spacing:-.045em;gap:9px; }
+html.shods-native .site-header .brand b { color:#45e5d1; }
+html.shods-native .site-header .brand small { color:#b0dbf5;letter-spacing:.16em;font-size:6px; }
+html.shods-native .site-header .brand-icon { background:linear-gradient(140deg,#13cfc1,#078bc4);height:39px;width:39px;border:1px solid #ffffff48; }
+html.shods-native .site-header .nav-actions { display:flex;gap:3px;margin-left:auto;align-items:center; }
+html.shods-native .site-header .nav-actions .icon-btn { color:#f7ffff;background:#ffffff13;border:1px solid #ffffff25;width:37px;height:37px;border-radius:13px;display:grid;place-items:center;position:relative; }
+html.shods-native .site-header .nav-actions .cart-nav,
+html.shods-native .site-header .nav-actions .burger,
+html.shods-native .site-header .nav-actions button[title*='Notification'],
+html.shods-native .site-header .nav-actions button[title*='Bildirish'] { display:grid; }
+html.shods-native .site-header .nav-actions .icon-btn[title*='chat'],
+html.shods-native .site-header .nav-actions .icon-btn[title*='Xabar'] { display:none; }
+html.shods-native .main-links.mobile-open { display:flex;top:calc(64px + env(safe-area-inset-top));background:#f8fbff;border-radius:0 0 20px 20px;box-shadow:0 14px 30px #0a2b4c22; }
+html.shods-native .main-links.mobile-open button { color:#183f69;text-align:left;padding:13px; }
+html.shods-native .shell { width:calc(100% - 28px); }
+html.shods-native .shods-native-home { padding:20px 14px 35px;max-width:680px;margin:0 auto; }
+html.shods-native .shods-native-welcome { display:flex;align-items:center;justify-content:space-between;gap:13px;margin:3px 0 16px; }
+html.shods-native .shods-native-hello { color:#1183bd;font-size:9px;font-weight:900;letter-spacing:.12em; }
+html.shods-native .shods-native-welcome h1 { font-size:22px;line-height:1.32;letter-spacing:-.06em;margin:6px 0; }
+html.shods-native .shods-native-welcome h1 span { font-size:20px; }
+html.shods-native .shods-native-welcome p { margin:0;color:#75879c;font-size:11px;line-height:1.55; }
+html.shods-native .shods-native-avatar { display:grid;place-items:center;width:48px;height:48px;flex-shrink:0;border-radius:17px;background:#dff4f6;color:#08789a;border:1px solid #b3e9ec; }
+html.shods-native .shods-native-search { width:100%;display:flex;align-items:center;gap:12px;padding:15px 14px;border:1px solid #dce9f6;border-radius:16px;color:#67839e;background:white;box-shadow:0 7px 22px #10416c10;text-align:left;font-size:11px;font-weight:650; }
+html.shods-native .shods-native-search span { flex:1; }
+html.shods-native .shods-native-search svg:first-child { color:#1465b3; }
+html.shods-native .shods-native-search svg:last-child { color:#0a9eb0; }
+html.shods-native .shods-native-slider { margin:18px 0 23px; }
+html.shods-native .shods-native-slider .shods-ad-card { min-height:236px;max-height:none;border-radius:23px;padding:14px 16px 12px;background:linear-gradient(118deg,#e6f5ff,#f9fcff 56%,#e4fff9);border:1px solid #cde3f8;box-shadow:0 13px 31px #0f4a801b; }
+html.shods-native .shods-native-slider .shods-ad-head { min-height:18px; }
+html.shods-native .shods-native-slider .shods-ad-edition,
+html.shods-native .shods-native-slider .shods-ad-topline { display:none; }
+html.shods-native .shods-native-slider .shods-ad-kicker { font-size:9px; }
+html.shods-native .shods-native-slider .shods-ad-main { display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:6px;min-height:169px; }
+html.shods-native .shods-native-slider .shods-ad-copy { padding:8px 0 4px; }
+html.shods-native .shods-native-slider .shods-ad-copy h2 { font-size:21px;line-height:1.13;margin:0 0 7px; }
+html.shods-native .shods-native-slider .shods-ad-copy p { font-size:9px;line-height:1.52;margin-bottom:10px;-webkit-line-clamp:2; }
+html.shods-native .shods-native-slider .shods-ad-cta { min-height:32px;padding:8px 11px;font-size:9px;border-radius:9px; }
+html.shods-native .shods-native-slider .shods-ad-product,
+html.shods-native .shods-native-slider .shods-ad-product-frame { display:flex; }
+html.shods-native .shods-native-slider .shods-ad-product-frame { width:100%;height:148px;padding:6px;border-radius:16px;background:white;transform:rotate(1deg);box-shadow:0 10px 28px #0d468526; }
+html.shods-native .shods-native-slider .shods-ad-product-frame img { object-fit:contain; }
+html.shods-native .shods-native-slider .shods-ad-product-frame>span { font-size:63px; }
+html.shods-native .shods-native-slider .shods-ad-product-caption { display:none; }
+html.shods-native .shods-native-slider .shods-ad-bottom { padding-top:5px; }
+html.shods-native .shods-native-slider .shods-ad-counter { font-size:9px; }
+html.shods-native .shods-native-slider .shods-ad-arrow,
+html.shods-native .shods-native-slider .shods-ad-pause { height:24px;min-width:24px;border-radius:8px;font-size:14px; }
+html.shods-native .shods-native-section-title { display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 12px; }
+html.shods-native .shods-native-section-title h2 { font-size:17px;letter-spacing:-.05em;margin:0; }
+html.shods-native .shods-native-section-title button { display:flex;align-items:center;gap:4px;background:none;border:0;color:#1671c9;font-size:10px;font-weight:900;white-space:nowrap; }
+html.shods-native .shods-native-categories { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px; }
+html.shods-native .shods-native-categories button { display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;color:var(--text);padding:2px;min-width:0; }
+html.shods-native .shods-native-categories button span { width:100%;max-width:63px;aspect-ratio:1;display:grid;place-items:center;background:white;border:1px solid #e2eaf5;border-radius:16px;box-shadow:0 7px 14px #1c4d7810;font-size:25px; }
+html.shods-native .shods-native-categories button small { font-size:8px;font-weight:800;line-height:1.3; }
+html.shods-native .shods-native-home .products-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px; }
+html.shods-native .shods-native-home .product-card { border-radius:17px;box-shadow:0 7px 20px #1247740a; }
+html.shods-native .shods-native-home .product-card .item-art { height:145px; }
+html.shods-native .shods-native-home .product-card .product-details { padding:11px; }
+html.shods-native .shods-native-home .product-card .item-title { font-size:11px;line-height:1.5; }
+html.shods-native .shods-native-home .product-card .seller-line { font-size:9px; }
+html.shods-native .shods-native-ai-promo { display:flex;width:100%;gap:13px;align-items:center;text-align:left;border:0;border-radius:20px;padding:18px 14px;margin:20px 0;color:white;background:linear-gradient(115deg,#0c3f8a,#0b78b3 72%,#00a9b3);box-shadow:0 14px 27px #074b8930; }
+html.shods-native .shods-native-ai-orb { display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:#ffffff25;flex:none; }
+html.shods-native .shods-native-ai-promo>span:nth-child(2) { display:flex;flex-direction:column;gap:5px;flex:1; }
+html.shods-native .shods-native-ai-promo b { font-size:14px; }
+html.shods-native .shods-native-ai-promo small { font-size:10px;font-weight:500;line-height:1.45;color:#d6f3ff; }
+html.shods-native .shods-native-news-link { background:#fff;border:1px solid #dae9f4;color:#1a517c;width:100%;display:flex;gap:13px;align-items:center;padding:18px;border-radius:16px;font-size:11px; }
+html.shods-native .shods-native-news-link span { flex:1;text-align:left; }
+html.shods-native .shods-native-empty { padding:20px;border:1px dashed #86b6d8;border-radius:16px;text-align:center;color:#6585a4;font-size:11px; }
+html.shods-native .shods-native-empty button { display:block;margin:13px auto 0;background:#1274cb;border:0;border-radius:11px;padding:10px 14px;color:white; }
+html.shods-native .shods-native-bottom { display:flex;position:fixed;bottom:0;left:0;right:0;z-index:90;align-items:center;justify-content:space-around;gap:4px;background:rgba(255,255,255,.97);border-top:1px solid #d9e9f4;box-shadow:0 -9px 32px #0d39691b;padding:10px 7px calc(10px + env(safe-area-inset-bottom));min-height:68px; }
+html.shods-native .shods-native-bottom button { display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;color:#627d99;font-size:10px;min-width:0;flex:1;padding:0; }
+html.shods-native .shods-native-bottom button small { font-size:9px; }
+html.shods-native .shods-native-bottom button.current { color:#0878bc; }
+html.shods-native .shods-native-bottom button:nth-child(3) svg { display:grid;place-items:center;box-sizing:content-box;padding:13px;border-radius:50%;background:linear-gradient(145deg,#1c9ce8,#0b63c0);color:white;box-shadow:0 7px 13px #146dcc36;transform:translateY(-10px); }
+html.shods-native .shods-native-bottom button:nth-child(3) small { margin-top:-12px;color:#0c76bd; }
+html.shods-native .auth-page { max-width:650px;grid-template-columns:1fr;gap:0;padding-top:15px; }
+html.shods-native .auth-intro { display:block;text-align:center; }
+html.shods-native .auth-intro .round-icon { display:grid;margin:0 auto 10px;border-radius:20px;background:linear-gradient(140deg,#0aa6b4,#1364b9);box-shadow:0 12px 20px #0460a62e; }
+html.shods-native .auth-intro h1 { font-size:22px; }
+html.shods-native .auth-intro>p { font-size:11px;margin-bottom:14px; }
+html.shods-native .auth-points { display:none; }
+html.shods-native .auth-card { padding:17px;border-radius:24px;box-shadow:0 10px 24px #183b6d11; }
+html.shods-native .auth-card .field { font-size:11px; }
+html.shods-native .auth-card input,
+html.shods-native .auth-card select { min-height:47px;font-size:13px;border-radius:12px; }
+html.shods-native .telegram-panel { border:1px solid #81d9d5;background:#effdfc;border-radius:15px;padding:14px; }
+html.shods-native .shods-telegram-reopen { display:flex;align-items:center;gap:6px;color:#117f98;font-size:11px;font-weight:800; }
+html.shods-native .shods-native-ai-page { display:flex;flex-direction:column;height:calc(100dvh - 145px - env(safe-area-inset-top) - env(safe-area-inset-bottom));max-width:650px;margin:0 auto; }
+html.shods-native .shods-native-ai-head { flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:17px 15px;background:linear-gradient(110deg,#0a3d85,#056d9c);color:white; }
+html.shods-native .shods-native-ai-head h1 { font-size:19px;margin:0; }
+html.shods-native .shods-native-ai-head p { font-size:10px;color:#b7f5f6;margin:4px 0 0; }
+html.shods-native .shods-native-ai-head>div { flex:1; }
+html.shods-native .shods-native-ai-head>button { border:1px solid #ffffff4a;border-radius:13px;color:white;background:#ffffff1c;padding:10px; }
+html.shods-native .shods-native-ai-robot { display:grid;place-items:center;width:46px;height:46px;flex-shrink:0;border-radius:18px;background:#ffffff27;color:#d2ffff;font-size:30px; }
+html.shods-native .shods-native-ai-chat { flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px;background:linear-gradient(#f2f8ff,#ecf7ff);padding:18px 15px; }
+html.shods-native .shods-native-bubble { max-width:90%;border-radius:18px;padding:12px 14px;line-height:1.55;font-size:12px;box-shadow:0 4px 14px #1749770e;white-space:pre-wrap;overflow-wrap:anywhere; }
+html.shods-native .shods-native-bubble.theirs { background:white;color:#1e4362;align-self:flex-start;border-bottom-left-radius:5px; }
+html.shods-native .shods-native-bubble.mine { background:linear-gradient(120deg,#106aca,#008e9c);color:white;align-self:flex-end;border-bottom-right-radius:5px; }
+html.shods-native .shods-native-ai-results { display:grid;gap:6px;margin-top:11px; }
+html.shods-native .shods-native-ai-results button { display:flex;align-items:center;justify-content:space-between;gap:5px;width:100%;border:1px solid #d0e5f4;background:#effaff;color:#185480;text-align:left;border-radius:10px;padding:10px;font-size:10px; }
+html.shods-native .shods-native-ai-prompts { display:flex;gap:8px;overflow-x:auto;flex:0 0 auto;padding:10px 13px;background:#f1f7ff;scrollbar-width:none; }
+html.shods-native .shods-native-ai-prompts button { flex-shrink:0;border:1px solid #d4e9f8;background:white;color:#246290;font-size:10px;padding:9px 11px;border-radius:20px; }
+html.shods-native .shods-native-ai-compose { display:flex;gap:8px;flex:0 0 auto;padding:11px 13px;background:white;border-top:1px solid #e4eff9; }
+html.shods-native .shods-native-ai-compose input { flex:1;min-width:0;background:#f6f9ff;border-radius:22px;border:1px solid #dae8f7;font-size:12px; }
+html.shods-native .shods-native-ai-compose button { display:grid;place-items:center;width:46px;height:46px;flex:none;background:#0798a7;border:0;border-radius:50%;color:white; }
+html.shods-native .shods-native-connection { padding:62px 25px;text-align:center;max-width:500px;margin:auto; }
+html.shods-native .shods-native-connection-icon { display:grid;place-items:center;margin:0 auto 15px;width:76px;height:76px;border-radius:25px;background:#e0edf8;color:#1765ab; }
+html.shods-native .shods-native-connection h2 { font-size:21px; }
+html.shods-native .shods-native-connection p { font-size:12px;color:#617f9c;line-height:1.8; }
+html.shods-native .shods-native-connection small { display:block;overflow-wrap:anywhere;margin:10px 0 20px;color:#8ba2b6;font-size:10px; }
+html.shods-native .shods-native-connection button { margin:auto; }
+@media(max-width:380px){ html.shods-native .shods-native-slider .shods-ad-copy h2 { font-size:18px; } html.shods-native .shods-native-slider .shods-ad-product-frame { height:135px; } html.shods-native .shods-native-home .product-card .item-art { height:126px; } }

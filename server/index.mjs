@@ -74,7 +74,8 @@ const response=(res,status,data)=>{res.writeHead(status,{'Content-Type':'applica
 const fail=(status,message)=>Object.assign(new Error(message),{status});
 function loginCookie(res,token){res.setHeader('Set-Cookie',`shods_session=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800${process.env.COOKIE_SECURE==='1'?'; Secure':''}`)}
 const signout=(res)=>res.setHeader('Set-Cookie','shods_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0');
-function getUser(req){const cookie=String(req.headers.cookie||'').split(';').map(p=>p.trim()).find(c=>c.startsWith('shods_session='));const token=cookie?.slice(14);const sess=token&&db.sessions[sessionKey(token)];if(!sess||sess.expires<Date.now())return null;const user=db.users.find(u=>u.id===sess.id);return user&&(user.status||'active')==='active'?user:null}
+function sessionTokenFrom(req){const bearer=String(req.headers.authorization||'').match(/^Bearer (s_[a-f0-9]{18})$/i)?.[1];const cookie=String(req.headers.cookie||'').split(';').map(p=>p.trim()).find(c=>c.startsWith('shods_session='));return bearer||cookie?.slice(14)}
+function getUser(req){const token=sessionTokenFrom(req);const sess=token&&db.sessions[sessionKey(token)];if(!sess||sess.expires<Date.now())return null;const user=db.users.find(u=>u.id===sess.id);return user&&(user.status||'active')==='active'?user:null}
 function authed(req){const user=getUser(req);if(!user)throw fail(401,'LOGIN_REQUIRED');return user}
 function administrator(req){const user=authed(req);if(user.role!=='admin')throw fail(403,'ADMIN_ONLY');return user}
 function notify(userId,type,title,detail='',link=''){
@@ -143,7 +144,20 @@ async function modelResponse(prompt,image,{json=false}={}) {
   }finally{clearTimeout(timer)}
 }
 
-async function aiAssist(data){const action=clean(data.action);const aiLanguage=({uz:'o‘zbek',ru:'rus',en:'ingliz'})[data.lang]||'o‘zbek';if(action==='finder'){
+async function aiAssist(data){const action=clean(data.action);const aiLanguage=({uz:'o‘zbek',ru:'rus',en:'ingliz'})[data.lang]||'o‘zbek';
+ if(action==='chat'){
+   const question=short(data.message,700);
+   if(!question)throw fail(400,'QUERY_REQUIRED');
+   const candidates=finder(question).slice(0,5);
+   const catalogue=candidates.map(x=>({id:x.id,title:x.name,category:x.category,price:x.price,kind:x.kind}));
+   if(!AI_KEY)return {engine:'unconfigured',reply:'SHODS AI serverda hali yoqilmagan. Katalogdagi mahsulotlarni ko‘rib chiqishingiz mumkin.',results:candidates};
+   try{
+    const prompt=`SHODS SHOP talabalar marketplace yordamchisisiz. ${aiLanguage} tilida 2-5 gap bilan javob bering. Savol: ${JSON.stringify(question)}. Katalog faktlari: ${JSON.stringify(catalogue)}. Narx, mahsulot mavjudligi, sotuvchi shaxsi yoki yetkazib berish va'dasini katalogda bo'lmasa uydirmang. Mahsulotlar ro'yxati to'liq bo'lmasligi mumkin; noaniq faktlar uchun tekshirishni tavsiya qiling. Faqat oddiy foydali javob bering.`;
+    const answer=await modelResponse(prompt);
+    return {engine:'gemini',reply:String(answer||'').slice(0,1500),results:candidates};
+   }catch(e){console.warn('AI mobile chat unavailable:',e.message);return {engine:'catalog-fallback',reply:'AI hozir javob bera olmadi. Quyidagi katalog natijalarini tekshirib ko‘ring.',results:candidates};}
+ }
+ if(action==='finder'){
     const query=short(data.query,350);
     if(!query)throw fail(400,'QUERY_REQUIRED');
     const basic=finder(query);
@@ -168,7 +182,8 @@ async function aiAssist(data){const action=clean(data.action);const aiLanguage=(
   throw fail(400,'INVALID_AI_ACTION')}
 function limitLogin(req){const ip=String(req.socket.remoteAddress||'unknown');const old=loginAttempts.get(ip)||[];const recent=old.filter(t=>t>Date.now()-10*60000);if(recent.length>=30)throw fail(429,'TOO_MANY_ATTEMPTS');recent.push(Date.now());loginAttempts.set(ip,recent)}
 async function router(req,res){const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);const p=url.pathname,method=req.method;
-  if(p==='/api/health'){const database=await databaseHealth();return response(res,200,{ok:true,version:'2.0.0',database});}
+  if(p==='/api/health'){const database=await databaseHealth();return response(res,200,{ok:true,version:'4.1.0',database,capabilities:{android:true,bearerAuth:true,telegramConfigured:telegramEnabled,telegramWebhook:webhookEnabled,receiptPayment:true,aiConfigured:!!AI_KEY}});}
+  if(p==='/api/payments/methods'&&method==='GET')return response(res,200,{cashOnReceipt:true,clickEnabled:false,paymeEnabled:false,onlineStatus:'merchant_integration_pending'});
   // Photos are uploaded first and receive a stable URL. Only owners with a
   // valid session can upload. The media response is read-only and public.
   if(p==='/api/media'&&method==='POST'){
@@ -187,8 +202,8 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   }
   if(p==='/api/bootstrap'&&method==='GET')return response(res,200,{items:db.items.filter(visible).map(itemPublic),institutions,faculties,config:{aiEnabled:!!AI_KEY,telegramEnabled,telegramBotName:BOT_NAME}});
   if(p==='/api/auth/me'&&method==='GET')return response(res,200,{user:publicUser(getUser(req))});
-  if(p==='/api/auth/login'&&method==='POST'){limitLogin(req);const b=await body(req);const u=db.users.find(x=>x.login===short(b.login,100));if(!u||!checkPassword(String(b.password||''),u.passwordHash))throw fail(401,'INVALID_CREDENTIALS');if((u.status||'active')!=='active')throw fail(403,'ACCOUNT_SUSPENDED');const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+7*86400000};await save();loginCookie(res,token);return response(res,200,{user:publicUser(u)})}
-  if(p==='/api/auth/logout'&&method==='POST'){const cookie=String(req.headers.cookie||'').split(';').find(c=>c.trim().startsWith('shods_session='));if(cookie){delete db.sessions[sessionKey(cookie.trim().slice(14))];await save()}signout(res);return response(res,200,{ok:true})}
+  if(p==='/api/auth/login'&&method==='POST'){limitLogin(req);const b=await body(req);const u=db.users.find(x=>x.login===short(b.login,100));if(!u||!checkPassword(String(b.password||''),u.passwordHash))throw fail(401,'INVALID_CREDENTIALS');if((u.status||'active')!=='active')throw fail(403,'ACCOUNT_SUSPENDED');const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+7*86400000};await save();loginCookie(res,token);return response(res,200,{user:publicUser(u),...(req.headers['x-shods-client']==='android'?{sessionToken:token}:{})})}
+  if(p==='/api/auth/logout'&&method==='POST'){const token=sessionTokenFrom(req);if(token){delete db.sessions[sessionKey(token)];await save()}signout(res);return response(res,200,{ok:true})}
   if(p==='/api/auth/telegram/start'&&method==='POST'){if(!telegramEnabled)throw fail(503,'TELEGRAM_NOT_CONFIGURED');limitLogin(req);for(const [k,v] of Object.entries(db.telegramChallenges))if(v.expires<Date.now())delete db.telegramChallenges[k];const token=uid('reg_');db.telegramChallenges[token]={verified:false,expires:Date.now()+600000};await save();return response(res,200,{token,url:`https://t.me/${BOT_NAME}?start=${token}`,expiresIn:600})}
   if(p==='/api/auth/telegram/status'&&method==='GET'){const token=short(url.searchParams.get('token'),100),v=db.telegramChallenges[token];return response(res,200,{verified:!!v&&v.expires>Date.now()&&v.verified,codeSent:!!v?.otpHash})}
   if(p==='/api/auth/telegram/confirm'&&method==='POST'){
@@ -220,16 +235,72 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
     return response(res,200,{ok:true});
   }
   if(p==='/api/auth/register'&&method==='POST'){limitLogin(req);const b=await body(req);const name=short(b.name,100),login=short(b.login,45).toLowerCase(),password=String(b.password||'');if(!name||!login||!/^[a-z0-9_]{4,45}$/.test(login)||password.length<8||password.length>128||!short(b.institute)||!short(b.faculty)||!short(b.direction)||!Number.isInteger(Number(b.course))||Number(b.course)<1||Number(b.course)>6)throw fail(400,'INVALID_REGISTRATION');if(db.users.some(u=>u.login===login))throw fail(409,'LOGIN_TAKEN');if(process.env.NODE_ENV==='production'&&!telegramEnabled)throw fail(503,'TELEGRAM_NOT_CONFIGURED');if(telegramEnabled){const challenge=db.telegramChallenges[clean(b.telegramToken)];if(!challenge||!challenge.verified||challenge.expires<Date.now())throw fail(403,'TELEGRAM_REQUIRED');if(db.users.some(u=>u.telegramChatId===challenge.chatId))throw fail(409,'TELEGRAM_ALREADY_USED');delete db.telegramChallenges[clean(b.telegramToken)];b.telegramChatId=challenge.chatId;}
-    const u={id:uid('U_'),name,login,passwordHash:hashPassword(password),institute:short(b.institute,140),faculty:short(b.faculty,140),direction:short(b.direction,140),course:Number(b.course),role:'student',status:'active',...(b.telegramChatId?{telegramChatId:b.telegramChatId}:{})};db.users.push(u);await save();const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+7*86400000};await save();loginCookie(res,token);return response(res,201,{user:publicUser(u)})}
+    const u={id:uid('U_'),name,login,passwordHash:hashPassword(password),institute:short(b.institute,140),faculty:short(b.faculty,140),direction:short(b.direction,140),course:Number(b.course),role:'student',status:'active',...(b.telegramChatId?{telegramChatId:b.telegramChatId}:{})};db.users.push(u);await save();const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+7*86400000};await save();loginCookie(res,token);return response(res,201,{user:publicUser(u),...(req.headers['x-shods-client']==='android'?{sessionToken:token}:{})})}
   if(p==='/api/listings/mine'&&method==='GET'){const u=authed(req);return response(res,200,{items:db.items.filter(i=>i.seller===u.id).map(itemPublic)})}
   if(p==='/api/listings'&&method==='POST'){const u=authed(req),b=await body(req);const item={id:uid('P_'),...listingPayload(b,u),createdAt:now(),moderation:'approved'};db.items.unshift(item);await save();return response(res,201,{item:itemPublic(item)})}
   const listingMatch=p.match(/^\/api\/listings\/([^/]+)$/);
   if(listingMatch&&method==='PATCH'){const u=authed(req),item=db.items.find(i=>i.id===listingMatch[1]);if(!item)throw fail(404,'NOT_FOUND');if(item.seller!==u.id)throw fail(403,'FORBIDDEN');const b=await body(req);const merged={...item,...b,kind:b.kind??item.kind};const validated=listingPayload(merged,u);Object.assign(item,validated);delete item.portfolio;await save();return response(res,200,{item:itemPublic(item)})}
   if(p==='/api/orders'&&method==='GET'){const u=authed(req);const type=url.searchParams.get('type')||'buyer';const rows=db.orders.filter(o=>type==='seller'?o.seller===u.id:type==='both'?(o.seller===u.id||o.buyer===u.id):o.buyer===u.id);return response(res,200,{orders:rows.map(o=>({...o,buyerName:db.users.find(u=>u.id===o.buyer)?.name||'',sellerName:db.users.find(u=>u.id===o.seller)?.name||''}))})}
-  if(p==='/api/orders'&&method==='POST'){const u=authed(req),b=await body(req);if(b.payment!=='demo')throw fail(400,'DEMO_ONLY');if(!Array.isArray(b.lines)||b.lines.length===0||b.lines.length>30)throw fail(400,'EMPTY_CART');const seen=new Set(),rows=[];for(const l of b.lines){if(seen.has(l.id))throw fail(400,'DUPLICATE_ITEM');seen.add(l.id);const item=db.items.find(p=>p.id===l.id);const qty=positiveInt(l.qty);if(!item||!visible(item)||!qty||qty>item.stock||qty>1000)throw fail(400,'UNAVAILABLE_ITEM');if(item.seller===u.id)throw fail(400,'OWN_ITEM');rows.push({item,qty})}
-    const created=rows.map(({item,qty})=>({id:uid('B_'),itemId:item.id,name:item.name,price:item.price,qty,total:item.price*qty,seller:item.seller,buyer:u.id,buyerCode:u.id,location:item.location,latitude:item.latitude,longitude:item.longitude,kind:item.kind,payment:'demo_paid',status:'new',createdAt:now()}));for(const r of rows)r.item.stock-=r.qty;db.orders.unshift(...created);for(const o of created)notify(o.seller,'order','Yangi buyurtma',`${o.name} · ${o.qty} dona`,'seller');await save();return response(res,201,{orders:created})}
+  if(p==='/api/orders'&&method==='POST'){const u=authed(req),b=await body(req);if(!['demo','pay_on_receipt'].includes(b.payment))throw fail(400,'INVALID_PAYMENT_PLAN');if(process.env.NODE_ENV==='production'&&b.payment==='demo')throw fail(400,'PAY_ON_RECEIPT_REQUIRED');if(!Array.isArray(b.lines)||b.lines.length===0||b.lines.length>30)throw fail(400,'EMPTY_CART');const seen=new Set(),rows=[];for(const l of b.lines){if(seen.has(l.id))throw fail(400,'DUPLICATE_ITEM');seen.add(l.id);const item=db.items.find(p=>p.id===l.id);const qty=positiveInt(l.qty);if(!item||!visible(item)||!qty||qty>item.stock||qty>1000)throw fail(400,'UNAVAILABLE_ITEM');if(item.seller===u.id)throw fail(400,'OWN_ITEM');rows.push({item,qty})}
+    const created=rows.map(({item,qty})=>({id:uid('B_'),itemId:item.id,name:item.name,price:item.price,qty,total:item.price*qty,seller:item.seller,buyer:u.id,buyerCode:u.id,location:item.location,latitude:item.latitude,longitude:item.longitude,kind:item.kind,payment:b.payment==='demo'?'demo_paid':'pay_on_receipt',paymentStatus:b.payment==='demo'?'demo':'unpaid',paymentMethod:b.payment==='demo'?'demo':null,receivedAt:null,paidAt:null,status:'new',createdAt:now()}));for(const r of rows)r.item.stock-=r.qty;db.orders.unshift(...created);for(const o of created)notify(o.seller,'order','Yangi buyurtma',`${o.name} · ${o.qty} dona`,'seller');await save();return response(res,201,{orders:created})}
   const orderMatch=p.match(/^\/api\/orders\/([^/]+)$/);
-  if(orderMatch&&method==='PATCH'){const u=authed(req),order=db.orders.find(o=>o.id===orderMatch[1]);if(!order)throw fail(404,'NOT_FOUND');if(order.seller!==u.id)throw fail(403,'FORBIDDEN');const b=await body(req),next=clean(b.status);const transitions={new:['accepted','cancelled'],accepted:['completed','cancelled'],completed:[],cancelled:[]};if(!transitions[order.status]?.includes(next))throw fail(400,'INVALID_STATUS');if(next==='cancelled'){const item=db.items.find(x=>x.id===order.itemId);if(item)item.stock+=order.qty}order.status=next;order.updatedAt=now();notify(order.buyer,'order',`Buyurtma: ${next}`,order.name,'buyer');await save();return response(res,200,{order})}
+  // Delivery-first settlement: seller can hand over; ONLY buyer can confirm receipt.
+  // Neither receipt nor an untrusted UI callback can mark an order as paid.
+  if(orderMatch&&method==='PATCH'){
+    const u=authed(req),order=db.orders.find(o=>o.id===orderMatch[1]);
+    if(!order)throw fail(404,'NOT_FOUND');
+    if(order.seller!==u.id)throw fail(403,'FORBIDDEN');
+    const b=await body(req),next=clean(b.status);
+    const delivery=order.payment==='pay_on_receipt';
+    const transitions=delivery?{new:['accepted','cancelled'],accepted:['handed_over','cancelled'],handed_over:[],received:[],completed:[],cancelled:[],disputed:[]}:{new:['accepted','cancelled'],accepted:['completed','cancelled'],completed:[],cancelled:[]};
+    if(!transitions[order.status]?.includes(next))throw fail(400,'INVALID_STATUS');
+    if(next==='cancelled'){const item=db.items.find(x=>x.id===order.itemId);if(item)item.stock+=order.qty;}
+    order.status=next;order.updatedAt=now();
+    if(next==='handed_over')order.handedOverAt=now();
+    notify(order.buyer,'order',next==='handed_over'?'Mahsulot topshirildi deb belgilandi':`Buyurtma: ${next}`,order.name,'buyer');
+    await save();return response(res,200,{order});
+  }
+  const receiveMatch=p.match(/^\/api\/orders\/([^/]+)\/receive$/);
+  if(receiveMatch&&method==='POST'){
+    const u=authed(req),order=db.orders.find(o=>o.id===receiveMatch[1]);
+    if(!order)throw fail(404,'NOT_FOUND');
+    if(order.buyer!==u.id)throw fail(403,'FORBIDDEN');
+    if(order.payment!=='pay_on_receipt'||order.status!=='handed_over')throw fail(409,'RECEIPT_NOT_AVAILABLE');
+    order.status='received';order.receivedAt=now();order.updatedAt=now();
+    notify(order.seller,'order','Xaridor mahsulotni qabul qildi',`${order.name} · To‘lov kutilmoqda`,'seller');
+    await save();return response(res,200,{order});
+  }
+  const cashClaimMatch=p.match(/^\/api\/orders\/([^/]+)\/cash-claim$/);
+  if(cashClaimMatch&&method==='POST'){
+    const u=authed(req),order=db.orders.find(o=>o.id===cashClaimMatch[1]);
+    if(!order)throw fail(404,'NOT_FOUND');
+    if(order.buyer!==u.id)throw fail(403,'FORBIDDEN');
+    if(order.payment!=='pay_on_receipt'||order.status!=='received'||order.paymentStatus!=='unpaid'||order.cashClaimedAt)throw fail(409,'CASH_CLAIM_NOT_AVAILABLE');
+    order.paymentMethod='cash';order.cashClaimedAt=now();order.updatedAt=now();
+    notify(order.seller,'payment','Xaridor naqd pul berganini bildirdi',`${order.name} · Pulni haqiqatan olgan bo‘lsangiz tasdiqlang`,'seller');
+    await save();return response(res,200,{order});
+  }
+  const cashConfirmMatch=p.match(/^\/api\/orders\/([^/]+)\/cash-confirm$/);
+  if(cashConfirmMatch&&method==='POST'){
+    const u=authed(req),order=db.orders.find(o=>o.id===cashConfirmMatch[1]);
+    if(!order)throw fail(404,'NOT_FOUND');
+    if(order.seller!==u.id)throw fail(403,'FORBIDDEN');
+    if(order.payment!=='pay_on_receipt'||order.status!=='received'||order.paymentStatus!=='unpaid'||!order.cashClaimedAt)throw fail(409,'CASH_CONFIRM_NOT_AVAILABLE');
+    order.paymentMethod='cash';order.paymentStatus='paid';order.paidAt=now();order.paidConfirmedBy=u.id;order.status='completed';order.updatedAt=now();
+    notify(order.buyer,'payment','Naqd to‘lov sotuvchi tomonidan tasdiqlandi',`${order.name} · ${order.total} so‘m`,'buyer');
+    await save();return response(res,200,{order});
+  }
+  const onlineMatch=p.match(/^\/api\/orders\/([^/]+)\/payment-intent$/);
+  if(onlineMatch&&method==='POST'){
+    const u=authed(req),order=db.orders.find(o=>o.id===onlineMatch[1]);
+    if(!order)throw fail(404,'NOT_FOUND');
+    if(order.buyer!==u.id)throw fail(403,'FORBIDDEN');
+    if(order.payment!=='pay_on_receipt'||order.status!=='received'||order.paymentStatus!=='unpaid')throw fail(409,'PAYMENT_NOT_DUE');
+    const b=await body(req);
+    if(!['payme','click'].includes(b.provider))throw fail(400,'INVALID_PAYMENT_PROVIDER');
+    // No merchant credentials/provider verification is configured. We never invent a paid state.
+    throw fail(503,'ONLINE_PAYMENTS_NOT_CONFIGURED');
+  }
   const sellerProfileMatch=p.match(/^\/api\/sellers\/([^/]+)$/);
   if(sellerProfileMatch&&method==='GET'){
     const u=db.users.find(x=>x.id===sellerProfileMatch[1]);if(!u)throw fail(404,'NOT_FOUND');
@@ -413,13 +484,18 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
 }
 
 async function handle(req,res){try{
+  const nativeOrigins=new Set(['http://localhost','https://localhost','capacitor://localhost']);
+  const origin=String(req.headers.origin||'');
+  const isNativeOrigin=nativeOrigins.has(origin)&&req.url?.startsWith('/api/');
+  if(isNativeOrigin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Methods','GET,POST,PATCH,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization,X-SHODS-CLIENT');res.setHeader('Access-Control-Max-Age','600');}
+  if(req.method==='OPTIONS'&&isNativeOrigin){res.writeHead(204);res.end();return;}
   if(['POST','PUT','PATCH','DELETE'].includes(req.method||'')){
     const origin=req.headers.origin;
     if(origin && process.env.NODE_ENV==='production'){
       const incomingHost=String(req.headers.host||'').split(':')[0].toLowerCase();
       let source;
       try{source=new URL(origin).hostname.toLowerCase()}catch{throw fail(403,'INVALID_ORIGIN')}
-      if(source!==incomingHost)throw fail(403,'INVALID_ORIGIN');
+      if(source!==incomingHost&&!isNativeOrigin)throw fail(403,'INVALID_ORIGIN');
     }
   }
   if(req.url?.startsWith('/api/')){

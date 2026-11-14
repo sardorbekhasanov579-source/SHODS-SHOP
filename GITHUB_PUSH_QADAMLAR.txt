@@ -1,11 +1,12 @@
-SHODS SHOP 3.0 — GitHub ga push
+SHODS SHOP 4.0 - GitHub push
 
-1. ZIP arxivni alohida papkaga oching.
-2. SHODS_SHOP_GITHUB_PUSH.cmd fayliga ikki marta bosing.
-3. Git va Node.js kerak. Skript GitHub repositoryni yangi papkaga clone qiladi.
-4. Barcha kodlarni nusxalaydi, npm ci, test:api va build bajaradi.
-5. Xatolik bo‘lsa PUSH QILMAYDI.
-6. Testlar o‘tsa Y tugmasi bilan tasdiqlang. GitHub akkauntingizga login talab qilinishi mumkin.
-7. Pushdan keyin Render avtomatik deployni boshlaydi.
+1. 4.0 ZIP ichidagi barcha fayllarni AL0HIDA yangi papkaga oching.
+2. SHODS_SHOP_4_GITHUB_PUSH.cmd ni ikki marta bosing.
+3. Skript GitHub main kodini vaqtinchalik papkaga klonlaydi.
+4. Git tarix, .env, node_modules va Android build fayllar saqlanadi.
+5. API testlari va Vite build o'tmasa PUSH QILINMAYDI.
+6. Diffni ko'ring, Y bosing va push bajariladi.
 
-Maxfiy .env va .git fayllar nusxalanmaydi. Neon bazasi o‘zgartirilmaydi.
+GitHub: https://github.com/sardorbekhasanov579-source/SHODS-SHOP
+Deploy: https://dashboard.render.com/web/srv-dbqrbie1egvs73cvu1p0
+Dastlab jonli bazaning zaxira nusxasini oling!

@@ -1,3 +1,13 @@
+> **SHODS SHOP 4.1:** Android ulanishi va Telegram muammolari uchun avval `SHODS_SHOP_4_1_BIRINCHI_OQING.md` ni o‘qing. Render 3.1 bilan yangi APK ulanmaydi.
+
+# SHODS SHOP 4.0 — Web + Android APK / mahsulotni olgandan keyin to‘lov
+
+**Birinchi o‘qiladigan fayl: [SHODS_SHOP_4_0_QOLLANMA.md](SHODS_SHOP_4_0_QOLLANMA.md)** — o‘rnatish, Android Studio orqali APK chiqarish, cash-on-receipt va xavfsiz GitHub deploy tartibi.
+
+**Eslatma:** Click/Payme real to‘lovlari hali ulanmagan. Sayt va Android APK yagona HTTPS API hamda bir xil ma’lumotlar bazasiga ishlaydi. Eski ma’lumotlar yo‘q qilinmaydi. Jonli saytga push alohida tasdiq bilan amalga oshiriladi.
+
+---
+
 # SHODS SHOP 3.0 — barcha manba kodlar (2026-11-13)
 
 **React + Vite + Node.js + PostgreSQL (Neon) + Gemini + Telegram bot + PWA**.

@@ -11,3 +11,18 @@ server/data/*.tmp
 
 # Media files in local JSON development; production stores media in PostgreSQL
 server/data/media/
+
+# Android build and local IDE artifacts
+android/.gradle/
+android/.idea/
+android/local.properties
+android/**/build/
+android/captures/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Never commit local secret environment files
+.env.*
+!.env.example
