@@ -2,13 +2,13 @@
 setlocal EnableExtensions
 chcp 65001 >nul
 cd /d "%~dp0"
-title SHODS SHOP 4.1 Android APK
+title SHODS SHOP 4.2 Android APK
 if not exist "package.json" (
  echo [XATO] package.json topilmadi. BAT fayl asosiy loyiha papkasida turishi kerak.
  goto :fail
 )
 echo ================================================
-echo SHODS SHOP 4.1 - Android APK tayyorlash
+echo SHODS SHOP 4.2 - Android APK tayyorlash
 echo ================================================
 echo [1/5] Paketlar va Capacitor Browser o'rnatilmoqda...
 call npm.cmd install --include=dev --no-audit
@@ -37,7 +37,7 @@ if errorlevel 1 (
 if exist "android\app\build\outputs\apk\debug\app-debug.apk" (
  echo.
  echo [TAYYOR] android\app\build\outputs\apk\debug\app-debug.apk
- echo [MUHIM] APK to'g'ri ulanishi uchun Render API 4.1 ga yangilangan bo'lishi kerak.
+ echo [MUHIM] APK to'g'ri ulanishi uchun Render API 4.2 ga yangilangan bo'lishi kerak.
  pause
  exit /b 0
 )

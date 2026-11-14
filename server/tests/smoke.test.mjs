@@ -40,13 +40,15 @@ test('SHODS SHOP: seller → buyer → admin end-to-end',async()=>{
   assert.deepEqual(Buffer.from(await actualImage.arrayBuffer()),png);
 
   const browse=await request('/api/bootstrap');assert.ok(browse.data.items.find(p=>p.id===id));
-  const selfOrder=await request('/api/orders',{method:'POST',cookie:seller,body:{lines:[{id,qty:1}],payment:'demo'}});assert.equal(selfOrder.status,400);
-  const purchased=await request('/api/orders',{method:'POST',cookie:buyer,body:{lines:[{id:'M05',qty:2}],payment:'demo'}});
+  const selfOrder=await request('/api/orders',{method:'POST',cookie:seller,body:{lines:[{id,qty:1}],payment:'pay_on_receipt'}});assert.equal(selfOrder.status,400);
+  const purchased=await request('/api/orders',{method:'POST',cookie:buyer,body:{lines:[{id:'M05',qty:2}],payment:'pay_on_receipt'}});
   assert.equal(purchased.status,201,JSON.stringify(purchased.data));assert.equal(purchased.data.orders[0].total,90000);
   const orderId=purchased.data.orders[0].id;
   const incoming=await request('/api/orders?type=seller',{cookie:seller});assert.ok(incoming.data.orders.find(o=>o.id===orderId));
   const accepted=await request('/api/orders/'+orderId,{method:'PATCH',cookie:seller,body:{status:'accepted'}});assert.equal(accepted.status,200);
-  const completed=await request('/api/orders/'+orderId,{method:'PATCH',cookie:seller,body:{status:'completed'}});assert.equal(completed.status,200);
+  const handed=await request('/api/orders/'+orderId,{method:'PATCH',cookie:seller,body:{status:'handed_over'}});assert.equal(handed.status,200);
+  const received=await request('/api/orders/'+orderId+'/receive',{method:'POST',cookie:buyer});assert.equal(received.status,200);
+  const completed=await request('/api/orders/'+orderId+'/cash-confirm',{method:'POST',cookie:seller});assert.equal(completed.status,200);
   const review=await request('/api/reviews',{method:'POST',cookie:buyer,body:{itemId:'M05',stars:5,text:'Juda yaxshi mahsulot'}});assert.equal(review.status,201);
   const sellerPublic=await request('/api/sellers/S03');assert.equal(sellerPublic.status,200);assert.equal(sellerPublic.data.completed,1);assert.equal(sellerPublic.data.reviews.length,1);
   const ticket=await request('/api/support',{method:'POST',cookie:buyer,body:{topic:'Technical',message:'Demo sinovda yordam kerak'}});assert.equal(ticket.status,201);

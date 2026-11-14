@@ -42,7 +42,8 @@ test('SHODS SHOP 4: receipt-first order, cash payment verification, authorizatio
   assert.equal(confirmed.headers.get('access-control-allow-origin'),'https://localhost');
   const duplicate=await req(`/api/orders/${order.id}/receive`,{method:'POST',cookie:buyer.cookie});assert.equal(duplicate.status,409);
   const fakeOnline=await req(`/api/orders/${order.id}/payment-intent`,{method:'POST',cookie:buyer.cookie,body:{provider:'click',paymentStatus:'paid'}});assert.equal(fakeOnline.status,503);
-  const cash=await req(`/api/orders/${order.id}/cash-claim`,{method:'POST',cookie:buyer.cookie});assert.equal(cash.status,200);assert.equal(cash.data.order.paymentStatus,'unpaid');
+  // A buyer cash-claim is no longer required for seller settlement.
+  assert.equal(confirmed.data.order.paymentStatus,'unpaid');
   const unauthorizedCash=await req(`/api/orders/${order.id}/cash-confirm`,{method:'POST',cookie:buyer.cookie});assert.equal(unauthorizedCash.status,403);
   const paid=await req(`/api/orders/${order.id}/cash-confirm`,{method:'POST',cookie:seller.cookie});
   assert.equal(paid.status,200,JSON.stringify(paid.data));assert.equal(paid.data.order.paymentStatus,'paid');assert.equal(paid.data.order.paymentMethod,'cash');assert.equal(paid.data.order.status,'completed');assert.ok(paid.data.order.receivedAt&&paid.data.order.paidAt);

@@ -18,7 +18,7 @@ let operationQueue = Promise.resolve();
 function prepare(state){
   if (!state?.users || !state?.items || !state?.orders) throw Error('Invalid persisted marketplace state');
   state.reviews ??= []; state.tickets ??= []; state.favorites ??= {};
-  state.audit ??= []; state.sessions ??= {}; state.telegramChallenges ??= {};
+  state.audit ??= []; state.sessions ??= {}; state.telegramChallenges ??= {}; state.incomeEntries ??= [];
   state.ads ??= []; state.chats ??= []; state.messages ??= []; state.jobs ??= []; state.proposals ??= []; state.notifications ??= []; state.news ??= [];
   return state;
 }

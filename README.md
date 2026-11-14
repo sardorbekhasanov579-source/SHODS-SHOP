@@ -1,3 +1,7 @@
+# SHODS SHOP 4.2 — Android + Web + naqd to‘lov + reklama daromadi
+
+**Birinchi navbatda [`SHODS_SHOP_4_2_BIRINCHI_OQING.md`](./SHODS_SHOP_4_2_BIRINCHI_OQING.md) faylini o‘qing.**
+
 > **SHODS SHOP 4.1:** Android ulanishi va Telegram muammolari uchun avval `SHODS_SHOP_4_1_BIRINCHI_OQING.md` ni o‘qing. Render 3.1 bilan yangi APK ulanmaydi.
 
 # SHODS SHOP 4.0 — Web + Android APK / mahsulotni olgandan keyin to‘lov

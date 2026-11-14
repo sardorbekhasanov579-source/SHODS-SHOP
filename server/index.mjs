@@ -58,11 +58,11 @@ const now=()=>new Date().toISOString();
 const uid=(prefix='')=>prefix+crypto.randomBytes(9).toString('hex');
 const hashPassword=(pw)=>{const salt=crypto.randomBytes(16).toString('hex');return `${salt}:${crypto.scryptSync(pw,salt,64).toString('hex')}`};
 const checkPassword=(pw,stored)=>{try{const [salt,value]=stored.split(':');const actual=crypto.scryptSync(pw,salt,64);const old=Buffer.from(value,'hex');return actual.length===old.length&&crypto.timingSafeEqual(actual,old)}catch{return false}};
-const publicUser=(u)=>u?({id:u.id,name:u.name,login:u.login,institute:u.institute,faculty:u.faculty,direction:u.direction,course:u.course,role:u.role||'student',status:u.status||'active'}):null;
-function seeds(){const names=['San’at talabasi','Tarix talabasi','Boshlang‘ich ta’lim talabasi','Tillar talabasi','Aniq fanlar talabasi'];const users=names.map((name,i)=>({id:`S0${i+1}`,name,login:`demo_s0${i+1}`,passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[i],direction:'Demo yo‘nalish',course:2,role:'student',status:'active'}));users.push({id:'X01',name:'Sinov xaridori',login:'demo_x01',passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[4],direction:'Sun’iy intellekt',course:1,role:'student',status:'active'});return {users,items:productSeeds.map(([id,name,kind,category,price,seller,emoji])=>({id,name,kind,category,price,seller,emoji,active:true,stock:kind==='Xizmat'?100:kind==='Raqamli'?99:20,description:`${name} — talaba tomonidan tayyorlangan ${kind==='Xizmat'?'xizmat':'mahsulot'}.`,location:kind==='Xizmat'?'Onlayn':'Termiz shahri, institut hududi',image:null,imageHash:null,createdAt:now()})),orders:[],reviews:[],tickets:[],favorites:{},audit:[],ads:[],chats:[],messages:[],jobs:[],proposals:[],notifications:[],news:[]}};
+const publicUser=(u)=>u?({id:u.id,name:u.name,login:u.login,institute:u.institute,faculty:u.faculty,direction:u.direction,course:u.course,role:u.role||'student',status:u.status||'active',proUntil:u.proUntil||null}):null;
+function seeds(){const names=['San’at talabasi','Tarix talabasi','Boshlang‘ich ta’lim talabasi','Tillar talabasi','Aniq fanlar talabasi'];const users=names.map((name,i)=>({id:`S0${i+1}`,name,login:`demo_s0${i+1}`,passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[i],direction:'Demo yo‘nalish',course:2,role:'student',status:'active'}));users.push({id:'X01',name:'Sinov xaridori',login:'demo_x01',passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[4],direction:'Sun’iy intellekt',course:1,role:'student',status:'active'});return {users,items:productSeeds.map(([id,name,kind,category,price,seller,emoji])=>({id,name,kind,category,price,seller,emoji,active:true,stock:kind==='Xizmat'?100:kind==='Raqamli'?99:20,description:`${name} — talaba tomonidan tayyorlangan ${kind==='Xizmat'?'xizmat':'mahsulot'}.`,location:kind==='Xizmat'?'Onlayn':'Termiz shahri, institut hududi',image:null,imageHash:null,createdAt:now()})),orders:[],reviews:[],tickets:[],favorites:{},audit:[],ads:[],chats:[],messages:[],jobs:[],proposals:[],notifications:[],news:[],incomeEntries:[]}};
 // Demonstration identities never appear in real production accounts.
 const seedDemo = process.env.NODE_ENV !== 'production' && process.env.SEED_DEMO !== '0';
-function initialState(){return seedDemo?seeds():{users:[],items:[],orders:[],reviews:[],tickets:[],favorites:{},audit:[],sessions:{},ads:[],chats:[],messages:[],jobs:[],proposals:[],notifications:[],news:[]}}
+function initialState(){return seedDemo?seeds():{users:[],items:[],orders:[],reviews:[],tickets:[],favorites:{},audit:[],sessions:{},ads:[],chats:[],messages:[],jobs:[],proposals:[],notifications:[],news:[],incomeEntries:[]}}
 let db=await loadState(DATA,initialState);
 async function save(){await persistState(DATA,db)}
 const loginAttempts=new Map();db.telegramChallenges??={};
@@ -107,7 +107,7 @@ const visible=(item)=>item.active&&item.moderation!=='hidden';
 const imageOk=(s)=>!s||(typeof s==='string'&&( /^\/api\/media\/[a-f0-9-]{36}$/.test(s) || (s.length<1300000&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s)) ));
 async function body(req){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>1800000)throw fail(413,'PAYLOAD_TOO_LARGE');chunks.push(chunk)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')}catch{throw fail(400,'INVALID_JSON')}}
 const reviewsFor=(itemId)=>db.reviews.filter(r=>r.itemId===itemId);
-function itemPublic(p){const {portfolio:_legacyPortfolio,...safeItem}=p;const seller=db.users.find(u=>u.id===p.seller);const reviews=reviewsFor(p.id);return {...safeItem,sellerName:seller?.name||'Talaba',institute:seller?.institute||'',faculty:seller?.faculty||'',rating:reviews.length?reviews.reduce((n,r)=>n+r.stars,0)/reviews.length:0,reviewCount:reviews.length};}
+function itemPublic(p){const {portfolio:_legacyPortfolio,...safeItem}=p;const seller=db.users.find(u=>u.id===p.seller);const reviews=reviewsFor(p.id);return {...safeItem,sellerName:seller?.name||'Talaba',institute:seller?.institute||'',faculty:seller?.faculty||'',rating:reviews.length?reviews.reduce((n,r)=>n+r.stars,0)/reviews.length:0,reviewCount:reviews.length,sellerProUntil:seller?.proUntil||null};}
 const allowedKinds=['Moddiy','Raqamli','Xizmat'];
 function listingPayload(data,user){const name=short(data.name,120),description=short(data.description,1400),category=short(data.category,100);const kind=clean(data.kind);const price=Number(data.price),stock=positiveInt(data.stock);const location=short(data.location,200);if(!name||!category||!allowedKinds.includes(kind)||!Number.isSafeInteger(price)||price<=0||price>1e9||stock<1||stock>100000||!location)throw fail(400,'INVALID_LISTING');if(!imageOk(data.image))throw fail(400,'INVALID_IMAGE');return {name,description,kind,category,price,stock,location,latitude:typeof data.latitude==='number'&&Math.abs(data.latitude)<=90?data.latitude:null,longitude:typeof data.longitude==='number'&&Math.abs(data.longitude)<=180?data.longitude:null,active:!!data.active,oldPrice:Number.isSafeInteger(Number(data.oldPrice))&&Number(data.oldPrice)>price&&Number(data.oldPrice)<=1e9?Number(data.oldPrice):null,image:data.image||null,imageHash:/^[a-f0-9]{16}$/.test(data.imageHash||'')?data.imageHash:null,emoji:kind==='Xizmat'?'🧑‍💻':kind==='Raqamli'?'📘':'📦',seller:user.id}}
 const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
@@ -182,8 +182,8 @@ async function aiAssist(data){const action=clean(data.action);const aiLanguage=(
   throw fail(400,'INVALID_AI_ACTION')}
 function limitLogin(req){const ip=String(req.socket.remoteAddress||'unknown');const old=loginAttempts.get(ip)||[];const recent=old.filter(t=>t>Date.now()-10*60000);if(recent.length>=30)throw fail(429,'TOO_MANY_ATTEMPTS');recent.push(Date.now());loginAttempts.set(ip,recent)}
 async function router(req,res){const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);const p=url.pathname,method=req.method;
-  if(p==='/api/health'){const database=await databaseHealth();return response(res,200,{ok:true,version:'4.1.0',database,capabilities:{android:true,bearerAuth:true,telegramConfigured:telegramEnabled,telegramWebhook:webhookEnabled,receiptPayment:true,aiConfigured:!!AI_KEY}});}
-  if(p==='/api/payments/methods'&&method==='GET')return response(res,200,{cashOnReceipt:true,clickEnabled:false,paymeEnabled:false,onlineStatus:'merchant_integration_pending'});
+  if(p==='/api/health'){const database=await databaseHealth();return response(res,200,{ok:true,version:'4.2.0',database,capabilities:{android:true,bearerAuth:true,telegramConfigured:telegramEnabled,telegramWebhook:webhookEnabled,receiptPayment:true,aiConfigured:!!AI_KEY}});}
+  if(p==='/api/payments/methods'&&method==='GET')return response(res,200,{cashOnReceipt:true,onlyMethod:'cash',sellerConfirmsPayment:true,clickEnabled:false,paymeEnabled:false,onlineStatus:'disabled'});
   // Photos are uploaded first and receive a stable URL. Only owners with a
   // valid session can upload. The media response is read-only and public.
   if(p==='/api/media'&&method==='POST'){
@@ -241,8 +241,8 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   const listingMatch=p.match(/^\/api\/listings\/([^/]+)$/);
   if(listingMatch&&method==='PATCH'){const u=authed(req),item=db.items.find(i=>i.id===listingMatch[1]);if(!item)throw fail(404,'NOT_FOUND');if(item.seller!==u.id)throw fail(403,'FORBIDDEN');const b=await body(req);const merged={...item,...b,kind:b.kind??item.kind};const validated=listingPayload(merged,u);Object.assign(item,validated);delete item.portfolio;await save();return response(res,200,{item:itemPublic(item)})}
   if(p==='/api/orders'&&method==='GET'){const u=authed(req);const type=url.searchParams.get('type')||'buyer';const rows=db.orders.filter(o=>type==='seller'?o.seller===u.id:type==='both'?(o.seller===u.id||o.buyer===u.id):o.buyer===u.id);return response(res,200,{orders:rows.map(o=>({...o,buyerName:db.users.find(u=>u.id===o.buyer)?.name||'',sellerName:db.users.find(u=>u.id===o.seller)?.name||''}))})}
-  if(p==='/api/orders'&&method==='POST'){const u=authed(req),b=await body(req);if(!['demo','pay_on_receipt'].includes(b.payment))throw fail(400,'INVALID_PAYMENT_PLAN');if(process.env.NODE_ENV==='production'&&b.payment==='demo')throw fail(400,'PAY_ON_RECEIPT_REQUIRED');if(!Array.isArray(b.lines)||b.lines.length===0||b.lines.length>30)throw fail(400,'EMPTY_CART');const seen=new Set(),rows=[];for(const l of b.lines){if(seen.has(l.id))throw fail(400,'DUPLICATE_ITEM');seen.add(l.id);const item=db.items.find(p=>p.id===l.id);const qty=positiveInt(l.qty);if(!item||!visible(item)||!qty||qty>item.stock||qty>1000)throw fail(400,'UNAVAILABLE_ITEM');if(item.seller===u.id)throw fail(400,'OWN_ITEM');rows.push({item,qty})}
-    const created=rows.map(({item,qty})=>({id:uid('B_'),itemId:item.id,name:item.name,price:item.price,qty,total:item.price*qty,seller:item.seller,buyer:u.id,buyerCode:u.id,location:item.location,latitude:item.latitude,longitude:item.longitude,kind:item.kind,payment:b.payment==='demo'?'demo_paid':'pay_on_receipt',paymentStatus:b.payment==='demo'?'demo':'unpaid',paymentMethod:b.payment==='demo'?'demo':null,receivedAt:null,paidAt:null,status:'new',createdAt:now()}));for(const r of rows)r.item.stock-=r.qty;db.orders.unshift(...created);for(const o of created)notify(o.seller,'order','Yangi buyurtma',`${o.name} · ${o.qty} dona`,'seller');await save();return response(res,201,{orders:created})}
+  if(p==='/api/orders'&&method==='POST'){const u=authed(req),b=await body(req);if(b.payment!=='pay_on_receipt')throw fail(400,'CASH_ONLY_AFTER_RECEIPT');if(!Array.isArray(b.lines)||b.lines.length===0||b.lines.length>30)throw fail(400,'EMPTY_CART');const seen=new Set(),rows=[];for(const l of b.lines){if(seen.has(l.id))throw fail(400,'DUPLICATE_ITEM');seen.add(l.id);const item=db.items.find(p=>p.id===l.id);const qty=positiveInt(l.qty);if(!item||!visible(item)||!qty||qty>item.stock||qty>1000)throw fail(400,'UNAVAILABLE_ITEM');if(item.seller===u.id)throw fail(400,'OWN_ITEM');rows.push({item,qty})}
+    const created=rows.map(({item,qty})=>({id:uid('B_'),itemId:item.id,name:item.name,price:item.price,qty,total:item.price*qty,seller:item.seller,buyer:u.id,buyerCode:u.id,location:item.location,latitude:item.latitude,longitude:item.longitude,kind:item.kind,payment:'pay_on_receipt',paymentStatus:'unpaid',paymentMethod:null,receivedAt:null,paidAt:null,status:'new',createdAt:now()}));for(const r of rows)r.item.stock-=r.qty;db.orders.unshift(...created);for(const o of created)notify(o.seller,'order','Yangi buyurtma',`${o.name} · ${o.qty} dona`,'seller');await save();return response(res,201,{orders:created})}
   const orderMatch=p.match(/^\/api\/orders\/([^/]+)$/);
   // Delivery-first settlement: seller can hand over; ONLY buyer can confirm receipt.
   // Neither receipt nor an untrusted UI callback can mark an order as paid.
@@ -285,8 +285,8 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
     const u=authed(req),order=db.orders.find(o=>o.id===cashConfirmMatch[1]);
     if(!order)throw fail(404,'NOT_FOUND');
     if(order.seller!==u.id)throw fail(403,'FORBIDDEN');
-    if(order.payment!=='pay_on_receipt'||order.status!=='received'||order.paymentStatus!=='unpaid'||!order.cashClaimedAt)throw fail(409,'CASH_CONFIRM_NOT_AVAILABLE');
-    order.paymentMethod='cash';order.paymentStatus='paid';order.paidAt=now();order.paidConfirmedBy=u.id;order.status='completed';order.updatedAt=now();
+    if(order.payment!=='pay_on_receipt'||order.status!=='received'||order.paymentStatus!=='unpaid')throw fail(409,'CASH_CONFIRM_NOT_AVAILABLE');
+    order.paymentMethod='cash';order.paymentStatus='paid';order.paidAt=now();order.paidConfirmedBy=u.id;order.cashConfirmationSource='seller';order.status='completed';order.updatedAt=now();
     notify(order.buyer,'payment','Naqd to‘lov sotuvchi tomonidan tasdiqlandi',`${order.name} · ${order.total} so‘m`,'buyer');
     await save();return response(res,200,{order});
   }
@@ -441,6 +441,42 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   }
   if(p==='/api/support'&&method==='GET'){const u=authed(req);return response(res,200,{tickets:db.tickets.filter(x=>x.user===u.id)})}
   if(p==='/api/support'&&method==='POST'){const u=authed(req),b=await body(req);const message=short(b.message,1500),topic=short(b.topic,100);if(!message||!topic)throw fail(400,'INVALID_TICKET');const ticket={id:uid('T_'),user:u.id,topic,message,status:'new',createdAt:now()};db.tickets.unshift(ticket);await save();return response(res,201,{ticket})}
+  // SHODS SHOP 4.2: manually verified offline advertising revenue only.
+  // No bank charges or automatic payment confirmation occur here.
+  if(p==='/api/admin/finance'&&method==='GET'){
+    administrator(req);
+    const entries=db.incomeEntries||[];
+    return response(res,200,{entries:entries.slice(0,200),totalReceived:entries.reduce((n,x)=>n+x.amount,0),
+      proSellers:db.users.filter(u=>u.proUntil&&new Date(u.proUntil)>new Date()).map(publicUser),
+      boostedListings:db.items.filter(i=>i.boostUntil&&new Date(i.boostUntil)>new Date()).map(itemPublic)});
+  }
+  if(p==='/api/admin/finance'&&method==='POST'){
+    const admin=administrator(req),b=await body(req);
+    const kind=short(b.kind,24),amount=positiveInt(b.amount),description=short(b.description,200);
+    if(!['advertisement','top','pro','other'].includes(kind)||!amount||amount>100000000||description.length<3)throw fail(400,'INVALID_FINANCE_ENTRY');
+    const entry={id:uid('FIN_'),kind,amount,description,paymentMethod:'cash',confirmedBy:admin.id,confirmedAt:now()};
+    db.incomeEntries??=[];db.incomeEntries.unshift(entry);db.incomeEntries=db.incomeEntries.slice(0,2000);
+    audit(admin,'finance.cash_received',entry.id,`${kind}: ${amount} UZS`);
+    await save();return response(res,201,{entry});
+  }
+  const boostMatch=p.match(/^\/api\/admin\/boost\/([^/]+)$/);
+  if(boostMatch&&method==='PATCH'){
+    const admin=administrator(req),item=db.items.find(x=>x.id===boostMatch[1]),b=await body(req);
+    if(!item)throw fail(404,'NOT_FOUND');
+    const days=Number(b.days);
+    if(!Number.isInteger(days)||days<0||days>30)throw fail(400,'INVALID_BOOST_DAYS');
+    item.boostUntil=days?new Date(Date.now()+days*86400000).toISOString():null;
+    audit(admin,'listing.boost',item.id,String(days));await save();return response(res,200,{item:itemPublic(item)});
+  }
+  const proMatch=p.match(/^\/api\/admin\/pro\/([^/]+)$/);
+  if(proMatch&&method==='PATCH'){
+    const admin=administrator(req),user=db.users.find(x=>x.id===proMatch[1]),b=await body(req);
+    if(!user)throw fail(404,'NOT_FOUND');if(user.role==='admin')throw fail(403,'PROTECTED_ADMIN');
+    const days=Number(b.days);
+    if(!Number.isInteger(days)||days<0||days>365)throw fail(400,'INVALID_PRO_DAYS');
+    user.proUntil=days?new Date(Date.now()+days*86400000).toISOString():null;
+    audit(admin,'user.pro',user.id,String(days));await save();return response(res,200,{user:publicUser(user)});
+  }
   // All administrative actions require a verified administrator session on the server.
   if(p==='/api/admin/overview'&&method==='GET'){
     administrator(req);
@@ -477,7 +513,7 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   if(p==='/api/admin/audit'&&method==='GET'){administrator(req);return response(res,200,{audit:(db.audit||[]).slice(0,200)});}
   if(p==='/api/admin/export'&&method==='GET'){
     const a=administrator(req);audit(a,'data.export','backup');await save();
-    return response(res,200,{exportedAt:now(),users:db.users.map(publicUser),items:db.items,orders:db.orders,reviews:db.reviews,tickets:db.tickets,ads:db.ads||[],news:db.news||[],chats:db.chats||[],jobs:db.jobs||[],proposals:db.proposals||[],notifications:db.notifications||[],audit:db.audit});
+    return response(res,200,{exportedAt:now(),users:db.users.map(publicUser),items:db.items,orders:db.orders,reviews:db.reviews,tickets:db.tickets,ads:db.ads||[],news:db.news||[],incomeEntries:db.incomeEntries||[],chats:db.chats||[],jobs:db.jobs||[],proposals:db.proposals||[],notifications:db.notifications||[],audit:db.audit});
   }
   if(p==='/api/ai/assist'&&method==='POST'){authed(req);const result=await aiAssist(await body(req));return response(res,200,result)}
   throw fail(404,'NOT_FOUND');

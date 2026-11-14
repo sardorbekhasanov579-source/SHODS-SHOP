@@ -280,3 +280,40 @@ html.shods-native .shods-native-connection p { font-size:12px;color:#617f9c;line
 html.shods-native .shods-native-connection small { display:block;overflow-wrap:anywhere;margin:10px 0 20px;color:#8ba2b6;font-size:10px; }
 html.shods-native .shods-native-connection button { margin:auto; }
 @media(max-width:380px){ html.shods-native .shods-native-slider .shods-ad-copy h2 { font-size:18px; } html.shods-native .shods-native-slider .shods-ad-product-frame { height:135px; } html.shods-native .shods-native-home .product-card .item-art { height:126px; } }
+
+/* SHODS SHOP 4.2 — responsive polish and accessible password reveal */
+.shods-password-wrap{position:relative;display:flex;align-items:center;width:100%}
+.shods-password-wrap input{width:100%;min-width:0;padding-right:52px!important;box-sizing:border-box}
+.shods-password-eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:42px;height:42px;border:0;border-radius:12px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:background .2s,color .2s}
+.shods-password-eye:hover,.shods-password-eye:focus-visible{background:var(--soft);color:var(--blue)}
+.shods-password-eye:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.shods-cash-hint{display:inline-flex;gap:5px;align-items:center;color:var(--blue);font-weight:700;font-size:11px}
+.shods-top-listing{position:absolute;z-index:3;top:12px;left:10px;background:linear-gradient(120deg,#fff4b5,#ffd15d);border:1px solid #ebaf3c;color:#805000;padding:4px 9px;border-radius:999px;font-weight:900;font-size:10px;box-shadow:0 4px 12px #5c390020}
+.product-card .photo-open{position:relative}
+.shods-pro-label{color:#0b6aa5;font-size:9px;font-weight:900;border-radius:7px;background:#e4f3ff;padding:2px 5px;margin-left:4px}
+.shods-pro-notice{display:flex;align-items:center;gap:7px;border-radius:12px;padding:10px 14px;margin-bottom:12px;background:linear-gradient(110deg,#dff3ff,#e8fffa);font-size:12px;font-weight:900;color:#126196}
+.shods-finance{display:grid;gap:14px}.shods-finance-head{display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(110deg,#ecf8ff,#eafff9);border:1px solid #d1edff}.shods-finance-head h3{margin:5px 0 8px}.shods-finance-head p{max-width:460px;color:#426b80;font-size:11px}.shods-finance-head>strong{font-size:25px;color:#0868a5;white-space:nowrap}.shods-finance-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.shods-finance-actions{display:flex;flex-wrap:wrap;gap:8px}.shods-finance-history{display:grid;gap:4px}.shods-finance-history>div{display:flex;justify-content:space-between;gap:12px;padding:12px 4px;border-top:1px solid var(--line)}.shods-finance-history small{display:block;color:var(--muted);margin-top:4px}.shods-finance-history strong{white-space:nowrap;color:#1277ae}
+@media(max-width:750px){.shods-finance-grid{grid-template-columns:1fr}.shods-finance-head{align-items:flex-start;flex-direction:column}}
+html.shods-native .shods-native-bottom{max-width:650px;margin-inline:auto;min-height:62px;padding:7px 7px calc(7px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;backdrop-filter:blur(14px);background:rgba(255,255,255,.96)}
+html.shods-native .shods-native-bottom button{position:relative;min-height:49px;min-width:0;padding:5px 3px;border-radius:13px;gap:3px;transition:background .18s,transform .18s}
+html.shods-native .shods-native-bottom button svg{width:20px;height:20px;stroke-width:2.1}
+html.shods-native .shods-native-bottom button small{font-size:9px;line-height:1.1;font-weight:800}
+html.shods-native .shods-native-bottom button.current{background:#e9f5ff;color:#0876ba}
+html.shods-native .shods-native-bottom button:nth-child(3) svg{padding:10px;border-radius:14px;transform:translateY(-5px);color:white;filter:drop-shadow(0 4px 9px #276ba736)}
+html.shods-native .shods-native-bottom button:nth-child(3) small{margin-top:-6px}
+.shods-nav-notice{position:absolute;top:0px;right:17%;display:grid;place-items:center;background:#ff6d51;color:white;border:2px solid white;min-width:17px;height:17px;padding:0 3px;border-radius:999px;font-size:9px;font-weight:900;z-index:2}
+html.shods-native .dashboard{padding-top:10px}html.shods-native .dash-aside{gap:5px;padding:4px;border-radius:13px;background:var(--soft);scrollbar-width:none}html.shods-native .dash-aside>button{min-height:37px;padding:8px 10px;border-radius:10px;font-size:10px;white-space:nowrap}html.shods-native .dash-aside>button.current{background:white;box-shadow:0 3px 10px #103d7013}
+html.shods-native .order-row{border-radius:13px;margin-bottom:8px}html.shods-native .order-cta .button{min-height:38px;border-radius:11px;font-size:11px}
+html.shods-native .site-header{height:58px}html.shods-native .nav-inner{min-height:58px}html.shods-native .auth-card{border:1px solid #e7f0f9}html.shods-native .shods-native-categories button span{border-radius:15px;box-shadow:0 5px 12px #1c4d7810}html.shods-native .shods-native-ai-promo{border-radius:17px;box-shadow:0 10px 20px #074b8920}
+@media(prefers-reduced-motion:reduce){html.shods-native .shods-native-bottom button,.shods-password-eye{transition:none}}
+
+/* 4.2 readability on small Android displays */
+html.shods-native .shods-native-bottom button small{font-size:10px}
+html.shods-native .shods-native-categories button small{font-size:10px;letter-spacing:-.015em}
+html.shods-native .shods-native-section-title button{font-size:11px}
+html.shods-native .shods-native-home .product-card .item-title{font-size:12px}
+html.shods-native .shods-native-home .product-card .item-bottom strong{font-size:12px}
+html.shods-native .auth-card .field{font-size:12px}
+html.shods-native .auth-card input,html.shods-native .auth-card select{font-size:14px}
+html.shods-native .shods-native-home .products-grid{gap:10px}
+@media(max-width:350px){html.shods-native .shods-native-bottom button small{font-size:9px}html.shods-native .shods-native-categories{gap:5px}}
