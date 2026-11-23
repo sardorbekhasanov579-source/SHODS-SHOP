@@ -13,12 +13,13 @@ import {extra} from './adminI18n.js';
 import {v3texts} from './v3i18n.js';
 import {Capacitor} from '@capacitor/core';
 import {Browser} from '@capacitor/browser';
+import {Preferences} from '@capacitor/preferences';
 import {evaluateAndroidRelease} from './androidUpdate.js';
 const INSTALLED_APK_VERSION=__SHODS_APP_VERSION__;
 
 // Android uses the same HTTPS API as Web, but bundles the React UI locally.
-// Sessions are kept in memory on Android (not in unencrypted localStorage).
-// Closing the APK may require signing in again, which is safer for this first version.
+// Android session is restored using Capacitor Preferences (not the password).
+// For production hardening, move the token to Android Keystore-backed secure storage.
 const nativeApp=Capacitor.isNativePlatform();
 const nativeApiOrigin=(import.meta.env.VITE_SHODS_API_URL||'https://shods-shop.onrender.com').replace(/\/$/,'');
 // Android must connect to a 4.1+ production API; its local https://localhost URL is only a WebView origin.
@@ -28,6 +29,19 @@ const openTelegram=async url=>{
  if(!opened && !nativeApp)window.location.assign(url);
 };
 let androidSessionToken=null;
+const ANDROID_SESSION_KEY='shods_android_session_v44';
+async function restoreAndroidSession(){
+ if(!nativeApp)return;
+ try{const {value}=await Preferences.get({key:ANDROID_SESSION_KEY});
+  androidSessionToken=/^s_[a-f0-9]{18}$/.test(value||'')?value:null;
+ }catch{androidSessionToken=null;}
+}
+async function rememberAndroidSession(token){
+ if(!nativeApp)return;
+ try{if(token)await Preferences.set({key:ANDROID_SESSION_KEY,value:token});
+ else await Preferences.remove({key:ANDROID_SESSION_KEY});}
+ catch(e){console.warn('Android session storage failed',e?.message);}
+}
 const mediaSrc=src=>nativeApp&&typeof src==='string'&&src.startsWith('/api/media/')?nativeApiOrigin+src:src;
 const deliveryTexts={
  uz:{heading:'Mahsulotni olgandan keyin to‘lash',info:'Buyurtma berganda pul yechilmaydi. Mahsulotni qabul qilganingizdan keyin to‘laysiz.',plan:'Qabul qilgandan keyin to‘lash',online:'Faqat naqd to‘lov. Sotuvchi pulni olgach tasdiqlaydi.',cashWaitSeller:'Naqd to‘lovni sotuvchi tasdiqlaydi',pending:'To‘lov kutilmoqda',paid:'To‘langan',handover:'Topshirildi — xaridor tasdiqlashi kutilmoqda',received:'Qabul qilindi — to‘lov kutilmoqda',cashClaim:'Naqd pulni berdim',cashConfirm:'Naqd pulni oldim — tasdiqlash',cashClaimed:'Sotuvchi pulni olganini tasdiqlashi kutilmoqda',receivedBtn:'Mahsulotni qabul qildim',handoverBtn:'Mahsulotni topshirdim',price:'To‘lov:',unpaid:'Hali to‘lanmagan',legacy:'Eski demo buyurtma',never:'To‘lov hali amalga oshirilmagan',cashConfirmAsk:'Naqd pulni haqiqatan olgan bo‘lsangizgina tasdiqlang.',confirmReceipt:'Mahsulot/xizmatni haqiqatan qabul qilganingizni tasdiqlaysizmi?',confirmCash:'Naqd pulni sotuvchiga berdingizmi? Bu to‘langanini hali bildirmaydi.',serverOnly:'Onlayn to‘lov hali faol emas. Naqd to‘lov faqat sotuvchi tasdiqlagach yakunlanadi.'},
@@ -47,8 +61,8 @@ async function api(route,{method='GET',body:payload}={}){
  const response=await fetch((nativeApp?nativeApiOrigin:'')+'/api'+route,{method,headers,body:payload===undefined?undefined:JSON.stringify(payload),credentials:nativeApp?'omit':'same-origin'});
  let data;try{data=await response.json()}catch{throw new Error('INVALID_SERVER_RESPONSE')}
  if(!response.ok)throw new Error(data.error||'SERVER_ERROR');
- if(nativeApp && (route==='/auth/login'||route==='/auth/register') && data.sessionToken)androidSessionToken=data.sessionToken;
- if(nativeApp && route==='/auth/logout')androidSessionToken=null;
+ if(nativeApp && (route==='/auth/login'||route==='/auth/register') && data.sessionToken){androidSessionToken=data.sessionToken;await rememberAndroidSession(data.sessionToken);}
+ if(nativeApp && route==='/auth/logout'){androidSessionToken=null;await rememberAndroidSession(null);}
  return data;
 }
 const cleanError=(e,t)=>{const messages={LOGIN_REQUIRED:t('loginRequired'),INVALID_CREDENTIALS:t('invalidLogin'),LOGIN_TAKEN:t('loginTaken'),ACCOUNT_SUSPENDED:t('forbidden'),OWN_ITEM:t('ownItem'),UNAVAILABLE_ITEM:t('unavailable'),PURCHASE_REQUIRED:t('reviewOnly'),TELEGRAM_REQUIRED:t('telegramNotVerified'),TELEGRAM_NOT_CONFIGURED:t('registerNotice'),TELEGRAM_INVALID_CODE:t('telegramInvalidCode'),TELEGRAM_CODE_EXPIRED:t('telegramExpiredCode'),TELEGRAM_TOO_MANY_ATTEMPTS:t('telegramTooMany'),ADMIN_ONLY:t('accessDenied')};return messages[e.message]||e.message||t('error')};
@@ -142,7 +156,7 @@ function Header(){const {t,go,page,user,cart,setMobileMenu,mobileMenu,logout,mod
   </nav><div className="nav-actions"><LangControl/>{installPrompt&&<button title={t('install')} className="icon-btn install-btn" onClick={install}><Download size={18}/></button>}<button className="icon-btn cart-nav" onClick={()=>go('cart')} title={t('cart')}><ShoppingCart size={20}/>{cart.length>0&&<span>{cart.reduce((a,b)=>a+b.qty,0)}</span>}</button>
    {user&&<><button className="icon-btn" title={t('chat')} onClick={()=>go('chats')}><MessageCircle size={19}/></button><button className="icon-btn" title={t('alerts')} onClick={()=>go('notifications')}><Bell size={19}/>{unread>0&&<span className="v3-bell-badge">{unread>99?"99+":unread}</span>}</button></>}{user?<div className="user-actions"><button className="account-button" onClick={()=>go(mode==='seller'?'seller':'buyer')}><UserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><button className="icon-btn logout-nav" title={t('logout')} onClick={logout}><LogOut size={17}/></button></div>:<><button className="button subtle nav-signin" onClick={()=>go('auth')}>{t('login')}</button><button className="button primary nav-signup" onClick={()=>go('auth','register')}>{t('register')}</button></>}
    <button className="icon-btn burger" onClick={()=>setMobileMenu(!mobileMenu)}>{mobileMenu?<X/>:<Menu/>}</button></div></div></header>
-  {user&&<div className="mode-bar"><div className="shell mode-inner"><span><span className="online-dot"/> {t('account')}: <strong>{user.name}</strong></span><div className="mode-buttons"><button className={mode==='buyer'?'mode-active':''} onClick={()=>{setMode('buyer');go('buyer')}}><ShoppingCart size={14}/> {t('buyer')}</button><button className={mode==='seller'?'mode-active':''} onClick={()=>{setMode('seller');go('seller')}}><Store size={14}/> {t('seller')}</button></div></div></div>}
+  {user&&<div className="mode-bar"><div className="shell mode-inner"><span className="mode-account"><span className="online-dot"/> {t('account')}: <strong>{user.name}</strong></span><div className="mode-buttons" role="group" aria-label="Kabinetni tanlash"><button className={mode==='buyer'?'mode-active':''} onClick={()=>{setMode('buyer');go('buyer')}}><ShoppingCart size={14}/> {t('buyer')}</button><button className={mode==='seller'?'mode-active':''} onClick={()=>{setMode('seller');go('seller')}}><Store size={14}/> {t('seller')}</button></div></div></div>}
  </>}
 function Footer(){const {t,go}=useShop();return <footer><div className="shell footer-inner"><div><Logo onClick={()=>go('home')}/><p>{t('allRights')}</p></div><div><strong>{t('studentServices')}</strong><p>{t('footerNote')}</p></div><button className="button footer-help" onClick={()=>go('support')}><LifeBuoy size={17}/> {t('support')}</button></div></footer>}
 function Heading({eyebrow,title,detail,action}){return <div className="section-heading"><div>{eyebrow&&<span className="eyebrow-label">{eyebrow}</span>}<h2>{title}</h2>{detail&&<p>{detail}</p>}</div>{action}</div>}
@@ -496,8 +510,8 @@ function AdminNewsTab(){
  return <div className="v3-admin-news"><form className="surface v3-news-admin-form" onSubmit={submit}><div className="panel-header"><h3><Newspaper size={19}/>{editing?t('newsEdit'):t('newsCreate')}</h3>{editing&&<button type="button" className="button outline small" onClick={()=>{setEditing(null);setForm(empty())}}>{t('cancel')}</button>}</div><div className="field-split"><label className="field"><span>{t('newsKind')}</span><select value={form.kind} onChange={e=>patch('kind',e.target.value)}>{['news','offer','notice'].map(x=><option value={x} key={x}>{t('newsType_'+x)}</option>)}</select></label><label className="field"><span>{t('newsCover')}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={imageUpload}/></label></div>{form.image&&<img className="v3-news-cover-preview" src={mediaSrc(form.image)} alt=""/>}<label className="field"><span>{t('newsTitle')} (O‘zbekcha) *</span><input required minLength={5} maxLength={125} value={form.title} onChange={e=>patch('title',e.target.value)}/></label><label className="field"><span>{t('newsText')} (O‘zbekcha) *</span><textarea required minLength={15} maxLength={3500} rows={4} value={form.body} onChange={e=>patch('body',e.target.value)}/></label><details><summary>Русский / English</summary>{[['Ru','Русский'],['En','English']].map(([suffix,label])=><div key={suffix}><label className="field"><span>{t('newsTitle')} — {label}</span><input maxLength={125} value={form['title'+suffix]} onChange={e=>patch('title'+suffix,e.target.value)}/></label><label className="field"><span>{t('newsText')} — {label}</span><textarea maxLength={3500} rows={3} value={form['body'+suffix]} onChange={e=>patch('body'+suffix,e.target.value)}/></label></div>)}</details><label className="toggle-line"><input type="checkbox" checked={!!form.published} onChange={e=>patch('published',e.target.checked)}/>{t('newsPublished')}</label><label className="toggle-line"><input type="checkbox" checked={!!form.broadcast} disabled={!form.published} onChange={e=>patch('broadcast',e.target.checked)}/><Bell size={16}/>{t('newsNotifyAll')}</label><p className="small-muted">{t('newsNotifyInfo')}</p><button className="button primary" disabled={busy}><Send size={16}/>{editing?t('save'):t('newsPublish')}</button></form><section className="surface v3-admin-news-list"><h3>{t('newsManage')}</h3>{news.length?news.map(n=><div className="v3-news-adminrow" key={n.id}><div><span className={'v3-news-type type-'+n.kind}>{t('newsType_'+n.kind)}</span><b>{localizedNews(n,lang).title}</b><small>{n.published?t('newsPublished'):t('newsDraft')} · {readable(n.createdAt,lang)}</small></div><div className="v3-news-actions"><button className="button light small" onClick={()=>edit(n)}>{t('edit')}</button><button className="button outline small" onClick={()=>toggle(n)}>{n.published?t('newsHide'):t('newsShow')}</button>{n.published&&<button className="button light small" onClick={()=>sendAgain(n)}><Bell size={14}/>{t('newsNotifyAll')}</button>}<button className="button light small" onClick={()=>remove(n)}><Trash2 size={14}/></button></div></div>):<p className="small-muted">{t('newsEmpty')}</p>}</section></div>
 }
 
-function MobileBar(){const {t,go,page,user,lang,orders}=useShop();const pending=orders.filter(o=>o.seller===user?.id&&o.status!=='completed'&&o.status!=='cancelled').length;const items=nativeApp?[
- ['home',Home,nt(lang,'home')],['catalog',Layers,nt(lang,'catalog')],['seller',Store,nt(lang,'sell')],['chats',MessageCircle,nt(lang,'messages')],[user?'buyer':'auth',UserRound,nt(lang,'profile')]
+function MobileBar(){const {t,go,page,user,lang,orders,mode}=useShop();const pending=orders.filter(o=>o.seller===user?.id&&o.status!=='completed'&&o.status!=='cancelled').length;const items=nativeApp?[
+ ['home',Home,nt(lang,'home')],['catalog',Layers,nt(lang,'catalog')],['seller',Store,nt(lang,'sell')],['chats',MessageCircle,nt(lang,'messages')],[user?(mode==='seller'?'seller':'buyer'):'auth',UserRound,nt(lang,'profile')]
  ]:[['home',Home,'home'],['catalog',Search,'catalog'],['cart',ShoppingCart,'cart'],[user?'buyer':'auth',UserRound,user?'profile':'login']];return <div className={'mobile-bar '+(nativeApp?'shods-native-bottom':'')}>{items.map(([path,Icon,label])=><button key={path} className={page===path?'current':''} aria-label={nativeApp?label:t(label)} onClick={()=>go(path)}><Icon size={21}/>{nativeApp&&path==='seller'&&pending>0&&<span className="shods-nav-notice">{pending>9?'9+':pending}</span>}<small>{nativeApp?label:t(label)}</small></button>)}</div>}
 export default function App(){
  const [lang,setLang]=useState(()=>localStorage.getItem('shods_lang')||'uz');
@@ -547,11 +561,11 @@ export default function App(){
  function toast(message){setNotice(message);window.clearTimeout(window.__shodsToast);window.__shodsToast=setTimeout(()=>setNotice(''),4300)}
  function go(next,id){if(['seller','buyer','add','admin','chats','notifications'].includes(next)&&!user){setPage('auth');return}if(next==='admin'&&user?.role!=='admin')return toast(t('accessDenied'));if(next==='seller'||next==='add')setMode('seller');if(next==='buyer')setMode('buyer');setPage(next);setSelectedId(id||null);setMobileMenu(false);if(next==='auth'&&id==='register')window.location.hash='register';else if(window.location.hash)history.replaceState(null,'',location.pathname);window.scrollTo({top:0,behavior:'instant'})}
  async function refresh(){if(nativeApp){const health=await api('/health');if(!health?.capabilities?.android)throw Error('SERVER_ANDROID_VERSION_OUTDATED')}const initial=await api('/bootstrap');setItems(initial.items);setConfig({...initial.config,institutions:initial.institutions,faculties:initial.faculties});const auth=await api('/auth/me');setUser(auth.user);if(auth.user){const [my,orderData,ticketData,fav]=await Promise.all([api('/listings/mine'),api('/orders?type=both'),api('/support'),api('/favorites')]);setMine(my.items);setOrders(orderData.orders);setTickets(ticketData.tickets);setFavorites(fav.ids)}else{setMine([]);setOrders([]);setTickets([]);setFavorites([])}return auth.user}
- useEffect(()=>{refresh().then(()=>setConnectionError('')).catch(e=>{setConnectionError(e?.message||'NETWORK_ERROR');toast(t('errorNetwork'))}).finally(()=>setLoading(false))},[]);
+ useEffect(()=>{(async()=>{await restoreAndroidSession();return refresh()})().then(account=>{setConnectionError('');if(account&&nativeApp)setPage(localStorage.getItem('shods_mode')==='seller'?'seller':'buyer')}).catch(e=>{setConnectionError(e?.message||'NETWORK_ERROR');toast(t('errorNetwork'))}).finally(()=>setLoading(false))},[]);
  async function retryConnection(){setLoading(true);try{await refresh();setConnectionError('')}catch(e){setConnectionError(e?.message||'NETWORK_ERROR')}finally{setLoading(false)}}
  async function run(fn,message){try{const result=await fn();if(message)toast(message);return result}catch(e){toast(cleanError(e,t));return null}}
- async function login(payload){const result=await run(async()=>{await api('/auth/login',{method:'POST',body:payload});await refresh();setPage('buyer');window.scrollTo(0,0)},t('ok'));return result}
- async function register(payload){return run(async()=>{await api('/auth/register',{method:'POST',body:payload});await refresh();setPage('buyer');window.scrollTo(0,0)},t('saved'))}
+ async function login(payload){const result=await run(async()=>{await api('/auth/login',{method:'POST',body:payload});await refresh();setPage(mode==='seller'?'seller':'buyer');window.scrollTo(0,0)},t('ok'));return result}
+ async function register(payload){return run(async()=>{await api('/auth/register',{method:'POST',body:payload});await refresh();setPage(mode==='seller'?'seller':'buyer');window.scrollTo(0,0)},t('saved'))}
  async function logout(){await run(async()=>{await api('/auth/logout',{method:'POST',body:{}});await refresh();setCart([]);go('home')},t('logout'))}
  function addCart(item){if(!user){go('auth');return toast(t('loginRequired'))}if(item.seller===user.id)return toast(t('ownItem'));if(item.stock<=0||!item.active)return toast(t('unavailable'));setCart(old=>{const found=old.find(o=>o.id===item.id);return found?old.map(x=>x.id===item.id?{...x,qty:Math.min(item.stock,x.qty+1)}:x):[...old,{id:item.id,qty:1}]});toast(t('addCart'))}
  async function toggleFavorite(id){if(!user)return go('auth');await run(async()=>{const r=await api('/favorites/'+id,{method:'POST',body:{}});setFavorites(r.ids)},t('saved'))}

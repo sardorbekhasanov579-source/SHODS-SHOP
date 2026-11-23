@@ -332,3 +332,14 @@ html.shods-native .shods-update-settings{margin:7px 0 15px;padding:13px!importan
 html.shods-native .shods-update-setting-actions{width:100%}
 html.shods-native .shods-update-setting-actions .button{flex:1;min-height:37px;font-size:10px}
 @media(max-width:390px){.shods-update-banner{gap:7px;padding:8px}.shods-update-banner-text small{max-width:130px}.shods-update-download{padding:9px;font-size:10px}}
+
+/* SHODS SHOP 4.4: always-visible mobile buyer/seller switch */
+@media(max-width:760px){
+ .mode-bar{position:sticky;top:0;z-index:70;background:var(--surface,#fff);box-shadow:0 3px 12px #163c6017}
+ .mode-inner{display:flex;flex-direction:column;gap:6px;padding:7px 12px!important}
+ .mode-account{font-size:11px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mode-buttons{display:grid!important;grid-template-columns:1fr 1fr;width:100%;gap:7px;background:#eaf2f9;padding:5px;border-radius:15px}
+ .mode-buttons button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:43px!important;border-radius:12px!important;font-weight:800;font-size:12px!important}
+ .mode-buttons button.mode-active{background:#117bc0!important;color:white!important;box-shadow:0 3px 10px #0b5a9b3b}
+ html.shods-native .site-header{position:relative}
+}
