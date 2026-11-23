@@ -68,7 +68,7 @@ const now=()=>new Date().toISOString();
 const uid=(prefix='')=>prefix+crypto.randomBytes(9).toString('hex');
 const hashPassword=(pw)=>{const salt=crypto.randomBytes(16).toString('hex');return `${salt}:${crypto.scryptSync(pw,salt,64).toString('hex')}`};
 const checkPassword=(pw,stored)=>{try{const [salt,value]=stored.split(':');const actual=crypto.scryptSync(pw,salt,64);const old=Buffer.from(value,'hex');return actual.length===old.length&&crypto.timingSafeEqual(actual,old)}catch{return false}};
-const publicUser=(u)=>u?({id:u.id,name:u.name,login:u.login,institute:u.institute,faculty:u.faculty,direction:u.direction,course:u.course,role:u.role||'student',status:u.status||'active',proUntil:u.proUntil||null}):null;
+const publicUser=(u)=>u?({id:u.id,name:u.name,login:u.login,institute:u.institute,faculty:u.faculty,direction:u.direction,course:u.course,role:u.role||'student',status:u.status||'active',proUntil:u.proUntil||null,avatar:u.avatar||null}):null;
 function seeds(){const names=['San’at talabasi','Tarix talabasi','Boshlang‘ich ta’lim talabasi','Tillar talabasi','Aniq fanlar talabasi'];const users=names.map((name,i)=>({id:`S0${i+1}`,name,login:`demo_s0${i+1}`,passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[i],direction:'Demo yo‘nalish',course:2,role:'student',status:'active'}));users.push({id:'X01',name:'Sinov xaridori',login:'demo_x01',passwordHash:hashPassword('ShodsDemo123!'),institute:institutions[0],faculty:faculties[4],direction:'Sun’iy intellekt',course:1,role:'student',status:'active'});return {users,items:productSeeds.map(([id,name,kind,category,price,seller,emoji])=>({id,name,kind,category,price,seller,emoji,active:true,stock:kind==='Xizmat'?100:kind==='Raqamli'?99:20,description:`${name} — talaba tomonidan tayyorlangan ${kind==='Xizmat'?'xizmat':'mahsulot'}.`,location:kind==='Xizmat'?'Onlayn':'Termiz shahri, institut hududi',image:null,imageHash:null,createdAt:now()})),orders:[],reviews:[],tickets:[],favorites:{},audit:[],ads:[],chats:[],messages:[],jobs:[],proposals:[],notifications:[],news:[],incomeEntries:[]}};
 // Demonstration identities never appear in real production accounts.
 const seedDemo = process.env.NODE_ENV !== 'production' && process.env.SEED_DEMO !== '0';
@@ -213,6 +213,31 @@ async function router(req,res){const url=new URL(req.url||'/',`http://${req.head
   }
   if(p==='/api/bootstrap'&&method==='GET')return response(res,200,{items:db.items.filter(visible).map(itemPublic),institutions,faculties,config:{aiEnabled:!!AI_KEY,telegramEnabled,telegramBotName:BOT_NAME}});
   if(p==='/api/auth/me'&&method==='GET')return response(res,200,{user:publicUser(getUser(req))});
+  // Account profile changes are authenticated and never modify orders or listings.
+  if(p==='/api/account/profile'&&method==='PATCH'){
+    const u=authed(req),data=await body(req);
+    const name=short(data.name,100),institute=short(data.institute,140),faculty=short(data.faculty,140),direction=short(data.direction,140);
+    const course=Number(data.course);
+    if(name.length<2||!institute||!faculty||!direction||!Number.isInteger(course)||course<1||course>6)throw fail(400,'INVALID_PROFILE');
+    let avatar=u.avatar||null;
+    if(Object.hasOwn(data,'avatar')){
+      if(data.avatar===null)avatar=null;
+      else if(typeof data.avatar==='string'&&/^\/api\/media\/[a-f0-9-]{36}$/.test(data.avatar))avatar=data.avatar;
+      else throw fail(400,'INVALID_AVATAR');
+    }
+    Object.assign(u,{name,institute,faculty,direction,course,avatar});await save();
+    return response(res,200,{user:publicUser(u)});
+  }
+  if(p==='/api/account/password'&&method==='POST'){
+    const u=authed(req),data=await body(req),current=String(data.currentPassword||''),next=String(data.newPassword||'');
+    if(!checkPassword(current,u.passwordHash))throw fail(403,'WRONG_CURRENT_PASSWORD');
+    if(next.length<8||next.length>128||next===current)throw fail(400,'INVALID_NEW_PASSWORD');
+    u.passwordHash=hashPassword(next);
+    const currentKey=sessionKey(sessionTokenFrom(req));
+    for(const [key,session] of Object.entries(db.sessions||{}))if(session.id===u.id&&key!==currentKey)delete db.sessions[key];
+    await save();return response(res,200,{ok:true});
+  }
+
   if(p==='/api/auth/login'&&method==='POST'){limitLogin(req);const b=await body(req);const u=db.users.find(x=>x.login===short(b.login,100));if(!u||!checkPassword(String(b.password||''),u.passwordHash))throw fail(401,'INVALID_CREDENTIALS');if((u.status||'active')!=='active')throw fail(403,'ACCOUNT_SUSPENDED');const token=uid('s_');db.sessions[sessionKey(token)]={id:u.id,expires:Date.now()+30*86400000};await save();loginCookie(res,token);return response(res,200,{user:publicUser(u),...(req.headers['x-shods-client']==='android'?{sessionToken:token}:{})})}
   if(p==='/api/auth/logout'&&method==='POST'){const token=sessionTokenFrom(req);if(token){delete db.sessions[sessionKey(token)];await save()}signout(res);return response(res,200,{ok:true})}
   if(p==='/api/auth/telegram/start'&&method==='POST'){if(!telegramEnabled)throw fail(503,'TELEGRAM_NOT_CONFIGURED');limitLogin(req);for(const [k,v] of Object.entries(db.telegramChallenges))if(v.expires<Date.now())delete db.telegramChallenges[k];const token=uid('reg_');db.telegramChallenges[token]={verified:false,expires:Date.now()+600000};await save();return response(res,200,{token,url:`https://t.me/${BOT_NAME}?start=${token}`,expiresIn:600})}
