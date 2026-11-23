@@ -1,3 +1,9 @@
+# SHODS SHOP 4.3 — Android yangilanishi va Web platforma
+
+**Birinchi o‘qing:** [SHODS_SHOP_4_3_ANDROID_YANGILASH_QOLLANMASI.md](SHODS_SHOP_4_3_ANDROID_YANGILASH_QOLLANMASI.md)
+
+4.3’da Android versiya tekshiruvi, yangilanish haqida bildirishnoma va versiya raqamini Gradle’ga yozish skripti qo‘shildi. **APK avtomatik o‘rnatilmaydi.** Yangilangan APK avval ishonchli HTTPS manzilda nashr etilishi kerak.
+
 # SHODS SHOP 4.2 — Android + Web + naqd to‘lov + reklama daromadi
 
 **Birinchi navbatda [`SHODS_SHOP_4_2_BIRINCHI_OQING.md`](./SHODS_SHOP_4_2_BIRINCHI_OQING.md) faylini o‘qing.**

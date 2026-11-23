@@ -45,4 +45,3 @@ test('Gemini GenerateContent text and image integrations produce grounded UI res
   assert.equal(received[1].contents[0].parts[1].inline_data.mime_type,'image/png');
  }finally{await new Promise(resolve=>server.close(resolve));globalThis.fetch=originalFetch;fs.rmSync(tmp,{recursive:true,force:true})}
 });
-

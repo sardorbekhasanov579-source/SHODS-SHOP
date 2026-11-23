@@ -7,6 +7,16 @@ import {fileURLToPath} from 'node:url';
 import {loadState,persistState,withFreshState,databaseHealth,closeStorage,storeImage,loadImage} from './storage.mjs';
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const APP_VERSION=JSON.parse(fs.readFileSync(path.join(ROOT,'package.json'),'utf8')).version;
+const APK_RELEASE_VERSION=String(process.env.SHODS_ANDROID_RELEASE_VERSION||'').trim();
+const APK_RELEASE_URL=String(process.env.SHODS_ANDROID_APK_URL||'').trim();
+function androidReleaseInfo(){
+ let downloadUrl=null;
+ try{const u=new URL(APK_RELEASE_URL);if(u.protocol==='https:'&&!u.username&&!u.password&&u.hostname&&(!u.port||u.port==='443'))downloadUrl=u.toString();}catch{}
+ const published=Boolean(/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(APK_RELEASE_VERSION)&&downloadUrl);
+ return {releasePublished:published,version:published?APK_RELEASE_VERSION:null,downloadUrl:published?downloadUrl:null,notes:published?String(process.env.SHODS_ANDROID_RELEASE_NOTES||'').slice(0,320):'',webVersion:APP_VERSION};
+}
+
 const DATA=process.env.SHODS_DATA_PATH||path.join(ROOT,'server','data','db.json');
 const PORT=Number(process.env.PORT)||3001;
 const AI_KEY=process.env.GEMINI_API_KEY||'';
@@ -182,7 +192,8 @@ async function aiAssist(data){const action=clean(data.action);const aiLanguage=(
   throw fail(400,'INVALID_AI_ACTION')}
 function limitLogin(req){const ip=String(req.socket.remoteAddress||'unknown');const old=loginAttempts.get(ip)||[];const recent=old.filter(t=>t>Date.now()-10*60000);if(recent.length>=30)throw fail(429,'TOO_MANY_ATTEMPTS');recent.push(Date.now());loginAttempts.set(ip,recent)}
 async function router(req,res){const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);const p=url.pathname,method=req.method;
-  if(p==='/api/health'){const database=await databaseHealth();return response(res,200,{ok:true,version:'4.2.0',database,capabilities:{android:true,bearerAuth:true,telegramConfigured:telegramEnabled,telegramWebhook:webhookEnabled,receiptPayment:true,aiConfigured:!!AI_KEY}});}
+  if(p==='/api/app/android-release'&&method==='GET')return response(res,200,androidReleaseInfo());
+  if(p==='/api/health'){const database=await databaseHealth();return response(res,200,{ok:true,version:APP_VERSION,database,capabilities:{android:true,bearerAuth:true,telegramConfigured:telegramEnabled,telegramWebhook:webhookEnabled,receiptPayment:true,aiConfigured:!!AI_KEY}});}
   if(p==='/api/payments/methods'&&method==='GET')return response(res,200,{cashOnReceipt:true,onlyMethod:'cash',sellerConfirmsPayment:true,clickEnabled:false,paymeEnabled:false,onlineStatus:'disabled'});
   // Photos are uploaded first and receive a stable URL. Only owners with a
   // valid session can upload. The media response is read-only and public.

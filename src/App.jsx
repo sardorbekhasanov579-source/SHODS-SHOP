@@ -13,6 +13,8 @@ import {extra} from './adminI18n.js';
 import {v3texts} from './v3i18n.js';
 import {Capacitor} from '@capacitor/core';
 import {Browser} from '@capacitor/browser';
+import {evaluateAndroidRelease} from './androidUpdate.js';
+const INSTALLED_APK_VERSION=__SHODS_APP_VERSION__;
 
 // Android uses the same HTTPS API as Web, but bundles the React UI locally.
 // Sessions are kept in memory on Android (not in unencrypted localStorage).
@@ -195,7 +197,7 @@ function NativeAIPage(){
   <div className="shods-native-ai-prompts">{prompts.map(q=><button onClick={()=>send(q)} key={q}>{q}</button>)}</div>
   <form className="shods-native-ai-compose" onSubmit={e=>{e.preventDefault();send()}}><input aria-label="AI yordamchiga savol" value={draft} onChange={e=>setDraft(e.target.value)} placeholder={nt(lang,'aiAsk')} maxLength={700}/><button disabled={busy||!draft.trim()} type="submit" aria-label="Yuborish"><Send size={19}/></button></form>
  </div>}
-function NativeConnectionError({reason,onRetry}){const versionError=reason==='SERVER_ANDROID_VERSION_OUTDATED';return <main className="shods-native-connection"><div className="shods-native-connection-icon"><AlertCircle size={34}/></div><h2>{versionError?'Serverni yangilash kerak':'Serverga ulanib bo‘lmadi'}</h2><p>{versionError?'APK va Render serveri versiyasi mos emas. Serverga SHODS SHOP 4.2 backend kodini joylashtirish zarur.':'Internet aloqasini va Render serverini tekshiring. Render Free uyg‘onishi biroz vaqt olishi mumkin.'}</p><small>API: {nativeApiOrigin} · {reason}</small><button onClick={onRetry} className="button primary"><RefreshCcw size={17}/> Qayta tekshirish</button></main>}
+function NativeConnectionError({reason,onRetry}){const versionError=reason==='SERVER_ANDROID_VERSION_OUTDATED';return <main className="shods-native-connection"><div className="shods-native-connection-icon"><AlertCircle size={34}/></div><h2>{versionError?'Serverni yangilash kerak':'Serverga ulanib bo‘lmadi'}</h2><p>{versionError?'APK va Render serveri versiyasi mos emas. Serverga SHODS SHOP 4.3 backend kodini joylashtirish zarur.':'Internet aloqasini va Render serverini tekshiring. Render Free uyg‘onishi biroz vaqt olishi mumkin.'}</p><small>API: {nativeApiOrigin} · {reason}</small><button onClick={onRetry} className="button primary"><RefreshCcw size={17}/> Qayta tekshirish</button></main>}
 
 function HomePage(){const {t,go,items,lang}=useShop();const products=items.filter(i=>i.kind!=='Xizmat'&&i.active).slice(0,4),services=items.filter(i=>i.kind==='Xizmat'&&i.active).slice(0,4);const heroTiles=[['📚',t('digital')],['🎨',t('physical')],['🧑‍💻',t('service')]];return <>
  <section className="hero shods-hero-integrated"><div className="shell hero-wrap shods-hero-layout"><div className="hero-copy"><span className="hero-pill"><span className="pulse"/> {t('heroTag')}</span><h1>{t('heroA')}<br/><em>{t('heroB2')}</em></h1><p>{t('heroDesc')}</p><div className="hero-actions"><button className="button bright" onClick={()=>go('catalog')}>{t('seeProducts')} <ArrowRight size={18}/></button><button className="button ghost" onClick={()=>go('add')}>{t('sellNow')} <Plus size={17}/></button></div><div className="hero-stats"><div><strong>5</strong><span>{t('institute')}</span></div><div><strong>{items.length}+</strong><span>{t('listings')}</span></div><div><strong>2</strong><span>{t('types')}</span></div></div></div>
@@ -227,6 +229,22 @@ function AuthPage(){const {t,config,go,login,register,lang,toast}=useShop();cons
  {tab==='login'&&import.meta.env.DEV&&<div className="demo-login"><p><b>{t('demoAccounts')}</b></p><p>{t('demoAccountsNote')} <code>ShodsDemo123!</code></p><div className="demo-login-btns"><button onClick={()=>{set('login','demo_s03');set('password','ShodsDemo123!')}}>{t('sellerDemo')}</button><button onClick={()=>{set('login','demo_x01');set('password','ShodsDemo123!')}}>{t('buyerDemo')}</button></div></div>}
  </div></div>}
 function DashboardShell({children,role='buyer',active='overview',onNavigate}){const {t,user,go,mode,setMode}=useShop();const isSeller=role==='seller';const links=isSeller?[['seller','overview',LayoutDashboard,'sellerCab'],['seller','listings',Package,'myItems'],['seller','incoming',ClipboardList,'incoming'],['add','new',PlusCircle,'addListing']]:[['buyer','overview',LayoutDashboard,'buyerCab'],['buyer','orders',ClipboardList,'myOrders'],['buyer','favorites',Heart,'favorites'],['cart','cart',ShoppingCart,'cart']];return <div className="shell dashboard"><aside className="dash-aside"><div className="dashboard-user"><span className="avatar"><UserRound size={24}/></span><div><b>{user?.name}</b><small>{user?.faculty}</small></div></div><div className="sidebar-caption">{t('account')}</div>{links.map(([page,tab,Icon,label])=><button key={tab} className={active===tab?'current':''} onClick={()=>page==='seller'||page==='buyer'?onNavigate(tab):go(page)}><Icon size={18}/>{t(label)}</button>)}<div className="aside-bottom"><button onClick={()=>{setMode(isSeller?'buyer':'seller');go(isSeller?'buyer':'seller')}}><RefreshCcw size={16}/>{t('toggle')}</button></div></aside><section className="dash-body">{children}</section></div>}
+function AndroidUpdateSettings(){
+ const {androidRelease,androidChecking,checkAndroidUpdate,downloadAndroidUpdate,lang}=useShop();
+ if(!nativeApp)return null;
+ const labels={
+  uz:{title:'Ilova yangilanishlari',check:'Yangilanishni tekshirish',checking:'Tekshirilmoqda…',ready:'Yangi APK versiyasi mavjud',current:'Ilova yangilangan',unpublished:'Yangi APK hali nashr etilmagan',error:'Serverga ulanib bo‘lmadi',install:'Yangilash',hint:'Yangilash Android ruxsati bilan o‘rnatiladi. Ilovani o‘chirmang.'},
+  ru:{title:'Обновления приложения',check:'Проверить обновления',checking:'Проверка…',ready:'Доступна новая версия APK',current:'Приложение актуально',unpublished:'Новый APK пока не опубликован',error:'Не удалось проверить обновления',install:'Обновить',hint:'Обновление устанавливается с разрешения Android. Не удаляйте приложение.'},
+  en:{title:'App updates',check:'Check for updates',checking:'Checking…',ready:'New APK version available',current:'App is up to date',unpublished:'No new APK has been published yet',error:'Could not check for updates',install:'Update',hint:'Android will ask permission to install the update. Do not uninstall the app.'}
+ }[lang]||{};
+ const note=androidRelease.status==='available'?labels.ready:androidRelease.status==='current'?labels.current:androidRelease.status==='error'?labels.error:labels.unpublished;
+ return <section className="surface shods-update-settings" aria-label={labels.title}>
+  <div className="shods-update-symbol"><RefreshCcw size={22}/></div>
+  <div className="shods-update-setting-body"><strong>{labels.title}</strong><small>SHODS SHOP Android v{INSTALLED_APK_VERSION}</small><p>{note}{androidRelease.status==='available'?` · v${androidRelease.version}`:''}</p></div>
+  <div className="shods-update-setting-actions"><button type="button" className="button light small" disabled={androidChecking} onClick={()=>checkAndroidUpdate(true)}>{androidChecking?labels.checking:labels.check}</button>{androidRelease.status==='available'&&<button type="button" className="button primary small" onClick={downloadAndroidUpdate}>{labels.install} <ArrowUpRight size={14}/></button>}</div>
+ </section>;
+}
+
 function BuyerDashboard(){
  const {t,user,go,orders,favorites,items,lang,run,refresh}=useShop();const [tab,setTab]=useState('overview');
  const bought=orders.filter(o=>o.buyer===user.id);
@@ -236,6 +254,7 @@ function BuyerDashboard(){
  }
  return <DashboardShell role="buyer" active={tab} onNavigate={setTab}>
   <Heading eyebrow={t('goBuyer')} title={tab==='orders'?t('myOrders'):tab==='favorites'?t('favorites'):t('buyerCab')} detail={t('accountHelp')}/>
+  {nativeApp&&<AndroidUpdateSettings/>}
   {tab==='overview'&&<div className="stats-grid"><div className="stat-card"><span><ClipboardList/></span><small>{t('myOrders')}</small><strong>{bought.length}</strong></div><div className="stat-card"><span><Heart/></span><small>{t('favorites')}</small><strong>{favorites.length}</strong></div><div className="stat-card"><span><Package/></span><small>{t('listings')}</small><strong>{items.length}</strong></div></div>}
   {(tab==='overview'||tab==='orders')&&<section className="surface spaced"><div className="panel-header"><h3>{t('myOrders')}</h3><button className="text-button" onClick={()=>go('catalog')}>{t('goCatalog')} <ArrowRight size={14}/></button></div>{bought.length?<div className="data-list">{bought.map(o=><div className="order-row shods-v4-order" key={o.id}>
    <div className="row-icon"><Package/></div><div className="order-info"><b>{o.name}</b><small>#{o.id} • {readable(o.createdAt,lang)}</small><small><MapPin size={12}/>{o.location}</small>{o.payment==='pay_on_receipt'&&<div className="v4-order-note"><ShieldCheck size={14}/>{o.paymentStatus==='paid'?delivery(lang,'paid'):delivery(lang,'unpaid')}</div>}</div>
@@ -488,10 +507,42 @@ export default function App(){
  const [mode,setMode]=useState(()=>localStorage.getItem('shods_mode')||'buyer');
  const [installPrompt,setInstallPrompt]=useState(null);
  const [connectionError,setConnectionError]=useState('');
+ const [androidRelease,setAndroidRelease]=useState({status:'unpublished'});
+ const [androidChecking,setAndroidChecking]=useState(false);
+ const [androidUpdateHidden,setAndroidUpdateHidden]=useState(false);
+ const lastAndroidCheck=useRef(0);
  const [items,setItems]=useState([]),[mine,setMine]=useState([]),[orders,setOrders]=useState([]),[reviews,setReviews]=useState([]),[tickets,setTickets]=useState([]),[favorites,setFavorites]=useState([]),[user,setUser]=useState(null),[cart,setCart]=useState(()=>{try{return JSON.parse(localStorage.getItem('shods_cart')||'[]')}catch{return []}}),[config,setConfig]=useState({institutions:[],faculties:[]}),[loading,setLoading]=useState(true),[notice,setNotice]=useState(''),[mobileMenu,setMobileMenu]=useState(false);
  const t=key=>tLang(lang,key);
  useEffect(()=>{const h=e=>{e.preventDefault();setInstallPrompt(e)};window.addEventListener('beforeinstallprompt',h);return ()=>window.removeEventListener('beforeinstallprompt',h)},[]);
  async function install(){if(!installPrompt)return;await installPrompt.prompt();setInstallPrompt(null)}
+ async function checkAndroidUpdate(manual=false){
+  if(!nativeApp)return;
+  if(!manual&&Date.now()-lastAndroidCheck.current<15*60*1000)return;
+  lastAndroidCheck.current=Date.now();setAndroidChecking(true);
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
+  try{
+   const result=await fetch(nativeApiOrigin+'/api/app/android-release',{headers:{'X-SHODS-CLIENT':'android'},cache:'no-store',signal:controller.signal});
+   if(!result.ok)throw Error('UPDATE_SERVER_UNAVAILABLE');
+   const data=await result.json();
+   const info=evaluateAndroidRelease(data,INSTALLED_APK_VERSION);
+   setAndroidRelease(info);
+   if(info.status==='available')setAndroidUpdateHidden(false);
+   if(manual)toast(info.status==='available'?'Yangi versiya: '+info.version:info.status==='current'?'Sizdagi versiya yangilangan.':'Yangi APK hali nashr etilmagan.');
+  }catch(e){setAndroidRelease({status:'error'});if(manual)toast('Yangilanish serveri bilan aloqa o‘rnatilmadi.');}
+  finally{clearTimeout(timeout);setAndroidChecking(false);}
+ }
+ async function downloadAndroidUpdate(){
+  if(!nativeApp||androidRelease.status!=='available')return;
+  const url=androidRelease.url;
+  // The verified HTTPS release URL is opened in Android's browser, not installed silently.
+  try{await Browser.open({url});}catch{window.open(url,'_blank','noopener,noreferrer');}
+ }
+ useEffect(()=>{if(!nativeApp)return;
+  checkAndroidUpdate();
+  const whenVisible=()=>{if(document.visibilityState==='visible')checkAndroidUpdate();};
+  document.addEventListener('visibilitychange',whenVisible);
+  return()=>document.removeEventListener('visibilitychange',whenVisible);
+ },[]);
  useEffect(()=>{localStorage.setItem('shods_lang',lang);document.documentElement.lang=lang},[lang]);useEffect(()=>{localStorage.setItem('shods_theme',theme);document.documentElement.dataset.theme=theme},[theme]);useEffect(()=>{localStorage.setItem('shods_mode',mode)},[mode]);useEffect(()=>{localStorage.setItem('shods_cart',JSON.stringify(cart))},[cart]);
  function toast(message){setNotice(message);window.clearTimeout(window.__shodsToast);window.__shodsToast=setTimeout(()=>setNotice(''),4300)}
  function go(next,id){if(['seller','buyer','add','admin','chats','notifications'].includes(next)&&!user){setPage('auth');return}if(next==='admin'&&user?.role!=='admin')return toast(t('accessDenied'));if(next==='seller'||next==='add')setMode('seller');if(next==='buyer')setMode('buyer');setPage(next);setSelectedId(id||null);setMobileMenu(false);if(next==='auth'&&id==='register')window.location.hash='register';else if(window.location.hash)history.replaceState(null,'',location.pathname);window.scrollTo({top:0,behavior:'instant'})}
@@ -504,6 +555,6 @@ export default function App(){
  async function logout(){await run(async()=>{await api('/auth/logout',{method:'POST',body:{}});await refresh();setCart([]);go('home')},t('logout'))}
  function addCart(item){if(!user){go('auth');return toast(t('loginRequired'))}if(item.seller===user.id)return toast(t('ownItem'));if(item.stock<=0||!item.active)return toast(t('unavailable'));setCart(old=>{const found=old.find(o=>o.id===item.id);return found?old.map(x=>x.id===item.id?{...x,qty:Math.min(item.stock,x.qty+1)}:x):[...old,{id:item.id,qty:1}]});toast(t('addCart'))}
  async function toggleFavorite(id){if(!user)return go('auth');await run(async()=>{const r=await api('/favorites/'+id,{method:'POST',body:{}});setFavorites(r.ids)},t('saved'))}
- const context={t,lang,setLang,theme,setTheme,installPrompt,install,page,go,selectedId,items,mine,orders,reviews,setReviews,tickets,favorites,cart,setCart,user,mode,setMode,mobileMenu,setMobileMenu,config,loading,toast,refresh,run,login,register,logout,addCart,toggleFavorite};
- return <ShopContext.Provider value={context}><div className="app"><Header/>{loading?<div className="shell page-space"><div className="loading-screen"><Sparkles size={34}/><p>{t('dataLoading')}</p></div></div>:nativeApp&&connectionError?<NativeConnectionError reason={connectionError} onRetry={retryConnection}/>:<>{page==='home'&&(nativeApp?<NativeHomePage/>:<HomePage/>)}{page==='catalog'&&<CatalogPage/>}{page==='services'&&<CatalogPage servicesOnly/>}{page==='jobs'&&<JobsPage/>}{page==='news'&&<NewsPage/>}{page==='chats'&&<ChatsPage/>}{page==='notifications'&&<NotificationsPage/>}{page==='detail'&&<DetailPage/>}{page==='sellerPublic'&&<SellerPublicPage/>}{page==='cart'&&<CartPage/>}{page==='auth'&&<AuthPage/>}{page==='buyer'&&(user?<BuyerDashboard/>:<AuthPage/>)}{page==='seller'&&(user?<SellerDashboard/>:<AuthPage/>)}{page==='add'&&(user?<ListingEditor/>:<AuthPage/>)}{page==='ai'&&(nativeApp?<NativeAIPage/>:<AIPage/>)}{page==='support'&&<SupportPage/>}{page==='admin'&&<AdminPage/>}</>}<Footer/><MobileBar/>{notice&&<div role="status" className="toast"><CheckCircle2 size={20}/><span>{notice}</span><button onClick={()=>setNotice('')}><X size={16}/></button></div>}</div></ShopContext.Provider>
+ const context={t,lang,setLang,theme,setTheme,installPrompt,install,page,go,selectedId,items,mine,orders,reviews,setReviews,tickets,favorites,cart,setCart,user,mode,setMode,mobileMenu,setMobileMenu,config,loading,toast,refresh,run,login,register,logout,addCart,toggleFavorite,androidRelease,androidChecking,checkAndroidUpdate,downloadAndroidUpdate};
+ return <ShopContext.Provider value={context}><div className="app"><Header/>{loading?<div className="shell page-space"><div className="loading-screen"><Sparkles size={34}/><p>{t('dataLoading')}</p></div></div>:nativeApp&&connectionError?<NativeConnectionError reason={connectionError} onRetry={retryConnection}/>:<>{page==='home'&&(nativeApp?<NativeHomePage/>:<HomePage/>)}{page==='catalog'&&<CatalogPage/>}{page==='services'&&<CatalogPage servicesOnly/>}{page==='jobs'&&<JobsPage/>}{page==='news'&&<NewsPage/>}{page==='chats'&&<ChatsPage/>}{page==='notifications'&&<NotificationsPage/>}{page==='detail'&&<DetailPage/>}{page==='sellerPublic'&&<SellerPublicPage/>}{page==='cart'&&<CartPage/>}{page==='auth'&&<AuthPage/>}{page==='buyer'&&(user?<BuyerDashboard/>:<AuthPage/>)}{page==='seller'&&(user?<SellerDashboard/>:<AuthPage/>)}{page==='add'&&(user?<ListingEditor/>:<AuthPage/>)}{page==='ai'&&(nativeApp?<NativeAIPage/>:<AIPage/>)}{page==='support'&&<SupportPage/>}{page==='admin'&&<AdminPage/>}</>}{nativeApp&&androidRelease.status==='available'&&!androidUpdateHidden&&<div className="shods-update-banner" role="status"><span className="shods-update-banner-icon"><Download size={20}/></span><span className="shods-update-banner-text"><strong>SHODS SHOP v{androidRelease.version}</strong><small>{androidRelease.notes||'Android ilovasi uchun yangi yangilanish mavjud'}</small></span><button className="shods-update-download" onClick={downloadAndroidUpdate}>Yangilash</button><button aria-label="Yopish" className="shods-update-close" onClick={()=>setAndroidUpdateHidden(true)}><X size={18}/></button></div>}<Footer/><MobileBar/>{notice&&<div role="status" className="toast"><CheckCircle2 size={20}/><span>{notice}</span><button onClick={()=>setNotice('')}><X size={16}/></button></div>}</div></ShopContext.Provider>
 }
